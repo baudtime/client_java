@@ -98,16 +98,6 @@ public class BaudClient implements Client {
 
     @Override
     public QueryResponse instantQuery(String queryExp, Date time, long timeout, TimeUnit unit) {
-        String addr = serviceAddrProvider.getServiceAddr();
-        if (addr == null) {
-            throw new RuntimeException("no server was found");
-        }
-
-        Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
-        }
-
         String timeoutSec = String.valueOf(unit.toSeconds(timeout));
 
         InstantQueryRequest.Builder reqBuilder = InstantQueryRequest.newBuilder();
@@ -115,28 +105,8 @@ public class BaudClient implements Client {
         if (time != null) {
             reqBuilder.setTime(time);
         }
-        Message request = new Message(opaque.getAndIncrement(), reqBuilder.build());
 
-        ResponseFuture f = new ResponseFuture(request.getOpaque());
-        responseHandler.registerFuture(f);
-
-        try {
-            try {
-                ch.writeAndFlush(request);
-            } catch (Exception e) {
-                channelTables.remove(addr);
-                ch.close();
-                throw new RuntimeException(e);
-            }
-
-            try {
-                return (QueryResponse) f.waitResponse(timeout, unit);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        } finally {
-            responseHandler.releaseFuture(f);
-        }
+        return (QueryResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
     }
 
     @Override
@@ -160,60 +130,40 @@ public class BaudClient implements Client {
             throw new RuntimeException("exceeded maximum resolution of 11,000 points per timeseries. Try decreasing the query resolution (?step=XX)");
         }
 
-        String addr = serviceAddrProvider.getServiceAddr();
-        if (addr == null) {
-            throw new RuntimeException("no server was found");
-        }
-
-        Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
-        }
-
         String timeoutSec = String.valueOf(unit.toSeconds(timeout));
         String stepSec = String.valueOf(unit.toSeconds(step));
 
         RangeQueryRequest.Builder reqBuilder = RangeQueryRequest.newBuilder();
         reqBuilder.setQuery(queryExp).setTimeout(timeoutSec).setStart(start).setEnd(end).setStep(stepSec);
-        Message request = new Message(opaque.getAndIncrement(), reqBuilder.build());
 
-        ResponseFuture f = new ResponseFuture(request.getOpaque());
-        responseHandler.registerFuture(f);
-
-        try {
-            try {
-                ch.writeAndFlush(request);
-            } catch (Exception e) {
-                channelTables.remove(addr);
-                ch.close();
-                throw new RuntimeException(e);
-            }
-
-            try {
-                return (QueryResponse) f.waitResponse(timeout, unit);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        } finally {
-            responseHandler.releaseFuture(f);
-        }
+        return (QueryResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
     }
 
+    @Override
+    public SeriesLabelsResponse seriesLabels(Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit) {
+        if (start == null) {
+            throw new RuntimeException("start time must be provided");
+        }
+        if (end == null) {
+            throw new RuntimeException("end time must be provided");
+        }
+
+        if (end.before(start)) {
+            throw new RuntimeException("end time must not be before start time");
+        }
+
+        String timeoutSec = String.valueOf(unit.toSeconds(timeout));
+
+        SeriesLabelsRequest.Builder reqBuilder = SeriesLabelsRequest.newBuilder();
+        reqBuilder.setMatches(matches).setStart(start).setEnd(end).setTimeout(timeoutSec);
+
+        return (SeriesLabelsResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
+    }
 
     @Override
     public LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit) {
         if (name == null) {
             throw new RuntimeException("label name must be provided");
-        }
-
-        String addr = serviceAddrProvider.getServiceAddr();
-        if (addr == null) {
-            throw new RuntimeException("no server was found");
-        }
-
-        Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
         }
 
         String timeoutSec = String.valueOf(unit.toSeconds(timeout));
@@ -224,7 +174,21 @@ public class BaudClient implements Client {
             reqBuilder.setConstraint(constraint);
         }
 
-        Message request = new Message(opaque.getAndIncrement(), reqBuilder.build());
+        return (LabelValuesResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
+    }
+
+    private BaudMessage sendQueryRequest(BaudMessage query, long timeout, TimeUnit unit) {
+        String addr = serviceAddrProvider.getServiceAddr();
+        if (addr == null) {
+            throw new RuntimeException("no server was found");
+        }
+
+        Channel ch = getChannel(addr);
+        if (ch == null) {
+            throw new RuntimeException("can't connect to server");
+        }
+
+        Message request = new Message(opaque.getAndIncrement(), query);
 
         ResponseFuture f = new ResponseFuture(request.getOpaque());
         responseHandler.registerFuture(f);
@@ -239,7 +203,7 @@ public class BaudClient implements Client {
             }
 
             try {
-                return (LabelValuesResponse) f.waitResponse(timeout, unit);
+                return f.waitResponse(timeout, unit);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
