@@ -26,8 +26,9 @@ public class Series {
     private final List<Point> points;
 
     public Series(List<Label> labels, List<Point> points) {
-        labels.sort(Label.comparator);
-        points.sort(Point.comparator);
+        Collections.sort(labels, Label.comparator);
+        Collections.sort(points, Point.comparator);
+
         this.labels = labels;
         this.points = points;
     }
@@ -104,8 +105,12 @@ public class Series {
             List<Label> ls = new ArrayList<Label>(labels.size() + labelBuilders.size() + 1);
             ls.add(metricNameBuilder.build());
 
-            if (labels.size() > 0) {
-                ls.addAll(labels);
+            for (Label lb : labels) {
+                String name = lb.getName();
+                String value = lb.getValue();
+                if (name != null && name.length() > 0 && value != null && value.length() > 0) {
+                    ls.add(lb);
+                }
             }
             for (Label.Builder lb : labelBuilders) {
                 ls.add(lb.build());

@@ -15,10 +15,7 @@
 
 package io.baudtime.client;
 
-import io.baudtime.message.BaudMessage;
-import io.baudtime.message.GeneralResponse;
-import io.baudtime.message.LabelValuesResponse;
-import io.baudtime.message.QueryResponse;
+import io.baudtime.message.*;
 import io.baudtime.util.Util;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -52,9 +49,11 @@ class ResponseDecoder extends LengthFieldBasedFrameDecoder {
                 raw = frame.readBytes(frame.readableBytes());
                 if (type == 3) {
                     resp = new QueryResponse();
-                } else if (type == 17) {
+                } else if (type == 19) {
                     resp = new GeneralResponse();
-                } else if (type == 18) {
+                } else if (type == 5) {
+                    resp = new SeriesLabelsResponse();
+                } else if (type == 20) {
                     resp = new LabelValuesResponse();
                 }
 

@@ -18,6 +18,7 @@ package io.baudtime.client;
 import io.baudtime.message.LabelValuesResponse;
 import io.baudtime.message.QueryResponse;
 import io.baudtime.message.Series;
+import io.baudtime.message.SeriesLabelsResponse;
 import io.netty.channel.ChannelFuture;
 
 import java.util.Collection;
@@ -28,6 +29,8 @@ public interface Client {
     QueryResponse instantQuery(String queryExp, Date time, long timeout, TimeUnit unit);
 
     QueryResponse rangeQuery(String queryExp, Date start, Date end, long step, long timeout, TimeUnit unit);
+
+    SeriesLabelsResponse seriesLabels(Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit);
 
     LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit);
 
