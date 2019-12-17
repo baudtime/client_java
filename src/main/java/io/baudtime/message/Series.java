@@ -41,6 +41,21 @@ public class Series {
         return Collections.unmodifiableList(points);
     }
 
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append('{');
+        for (Label l : labels) {
+            sb.append(l.getName()).append("=").append(l.getValue());
+        }
+        sb.append('}');
+
+        for (Point p : points) {
+            sb.append(" ").append(p.T()).append(",").append(p.V());
+        }
+
+        return sb.toString();
+    }
+
     public static Builder newBuilder() {
         return new Builder();
     }

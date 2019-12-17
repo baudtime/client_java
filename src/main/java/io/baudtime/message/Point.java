@@ -18,6 +18,7 @@ package io.baudtime.message;
 import io.baudtime.util.Assert;
 
 import java.util.Comparator;
+import java.util.Date;
 
 public class Point {
     private final long t;
@@ -46,6 +47,11 @@ public class Point {
 
         public Builder setT(long t) {
             this.t = t;
+            return this;
+        }
+
+        public Builder setT(Date t) {
+            this.t = t.getTime();
             return this;
         }
 
