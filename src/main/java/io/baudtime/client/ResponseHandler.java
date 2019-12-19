@@ -17,18 +17,17 @@ package io.baudtime.client;
 
 import io.baudtime.message.BaudMessage;
 import io.baudtime.message.GeneralResponse;
+import io.baudtime.util.ConcurrentReferenceHashMap;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.util.ReferenceCountUtil;
 
-import java.util.concurrent.ConcurrentHashMap;
-
 
 @Sharable
 class ResponseHandler extends SimpleChannelInboundHandler<Message> {
 
-    private final ConcurrentHashMap<Long, ResponseFuture> futures = new ConcurrentHashMap<Long, ResponseFuture>();
+    private final ConcurrentReferenceHashMap<Long, ResponseFuture> futures = new ConcurrentReferenceHashMap<Long, ResponseFuture>();
     private WriteResponseHook writeResponseHook;
 
     public ResponseHandler() {
@@ -45,11 +44,12 @@ class ResponseHandler extends SimpleChannelInboundHandler<Message> {
             if (this.writeResponseHook != null) {
                 this.writeResponseHook.onReceiveResponse(msg.getOpaque(), (GeneralResponse) raw);
             }
-        } else {
-            ResponseFuture f = futures.get(msg.getOpaque());
-            if (f != null) {
-                f.putResponse(raw);
-            }
+        }
+
+        ResponseFuture future = futures.get(msg.getOpaque());
+        if (future != null) {
+            future.putResponse(raw);
+            futures.remove(future.getOpaque());
         }
         ReferenceCountUtil.release(msg);
     }

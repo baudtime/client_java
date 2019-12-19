@@ -61,16 +61,6 @@ public class ClientBuilder extends ClientConfig {
         return this;
     }
 
-    public ClientBuilder minBackoffOnWrite(long minBackoffOnWrite) {
-        this.minBackoffOnWrite = minBackoffOnWrite;
-        return this;
-    }
-
-    public ClientBuilder maxBackoffOnWrite(long maxBackoffOnWrite) {
-        this.maxBackoffOnWrite = maxBackoffOnWrite;
-        return this;
-    }
-
     public ClientBuilder flushChannelOnEachWrite(boolean flushChannelOnEachWrite) {
         this.flushChannelOnEachWrite = flushChannelOnEachWrite;
         return this;

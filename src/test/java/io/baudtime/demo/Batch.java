@@ -20,7 +20,7 @@ public class Batch {
     private static String[] addrs = {"127.0.0.1:8088"};
 
     public static void main(String[] args) {
-        Client cli = new ClientBuilder().flushChannelOnEachWrite(true).maxBackoffOnWrite(30)
+        Client cli = new ClientBuilder().flushChannelOnEachWrite(true)
                 .serviceAddrProvider(new StaticServiceAddrProvider(2, TimeUnit.SECONDS, addrs))
                 .writeResponseHook(new WriteResponseHook() {
                     @Override

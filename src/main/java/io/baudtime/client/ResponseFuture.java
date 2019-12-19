@@ -21,7 +21,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 public class ResponseFuture {
-    private final long opaque;
+    private final Long opaque;
 
     private final CountDownLatch countDownLatch = new CountDownLatch(1);
     private volatile BaudMessage response;
@@ -32,7 +32,7 @@ public class ResponseFuture {
         this.opaque = opaque;
     }
 
-    public BaudMessage waitResponse(long timeout, TimeUnit unit) throws InterruptedException {
+    public BaudMessage await(long timeout, TimeUnit unit) throws InterruptedException {
         if (!this.countDownLatch.await(timeout, unit)) {
             throw new RuntimeException("response timed out");
         }
@@ -68,7 +68,7 @@ public class ResponseFuture {
         this.response = response;
     }
 
-    public long getOpaque() {
+    public Long getOpaque() {
         return opaque;
     }
 

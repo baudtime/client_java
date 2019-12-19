@@ -43,7 +43,6 @@ public class BaudClient implements Client {
     private static final Logger log = LoggerFactory.getLogger(BaudClient.class);
 
     private final AtomicLong opaque = new AtomicLong(0);
-    private long awaitBackoffOnWrite;
 
     private final ClientConfig clientConfig;
     private final ConcurrentMap<String /* addr */, Channel> channelTables = new ConcurrentHashMap<String, Channel>();
@@ -54,10 +53,6 @@ public class BaudClient implements Client {
 
     BaudClient(final ClientConfig clientConfig, ServiceAddrProvider serviceAddrProvider, WriteResponseHook writeHook) {
         this.clientConfig = clientConfig;
-        this.awaitBackoffOnWrite = clientConfig.getMinBackoffOnWrite();
-        if (this.awaitBackoffOnWrite <= 0) {
-            this.awaitBackoffOnWrite = 1;
-        }
 
         if (Util.OS.isLinux()) {
             this.eventLoopGroup = new EpollEventLoopGroup();
@@ -106,7 +101,7 @@ public class BaudClient implements Client {
             reqBuilder.setTime(time);
         }
 
-        return (QueryResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
+        return (QueryResponse) sendRequest(reqBuilder.build(), timeout, unit);
     }
 
     @Override
@@ -136,7 +131,7 @@ public class BaudClient implements Client {
         RangeQueryRequest.Builder reqBuilder = RangeQueryRequest.newBuilder();
         reqBuilder.setQuery(queryExp).setTimeout(timeoutSec).setStart(start).setEnd(end).setStep(stepSec);
 
-        return (QueryResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
+        return (QueryResponse) sendRequest(reqBuilder.build(), timeout, unit);
     }
 
     @Override
@@ -157,7 +152,7 @@ public class BaudClient implements Client {
         SeriesLabelsRequest.Builder reqBuilder = SeriesLabelsRequest.newBuilder();
         reqBuilder.setMatches(matches).setStart(start).setEnd(end).setTimeout(timeoutSec);
 
-        return (SeriesLabelsResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
+        return (SeriesLabelsResponse) sendRequest(reqBuilder.build(), timeout, unit);
     }
 
     @Override
@@ -174,90 +169,24 @@ public class BaudClient implements Client {
             reqBuilder.setConstraint(constraint);
         }
 
-        return (LabelValuesResponse) sendQueryRequest(reqBuilder.build(), timeout, unit);
-    }
-
-    private BaudMessage sendQueryRequest(BaudMessage query, long timeout, TimeUnit unit) {
-        String addr = serviceAddrProvider.getServiceAddr();
-        if (addr == null) {
-            throw new RuntimeException("no server was found");
-        }
-
-        Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
-        }
-
-        Message request = new Message(opaque.getAndIncrement(), query);
-
-        ResponseFuture f = new ResponseFuture(request.getOpaque());
-        responseHandler.registerFuture(f);
-
-        try {
-            try {
-                ch.writeAndFlush(request);
-            } catch (Exception e) {
-                channelTables.remove(addr);
-                ch.close();
-                throw new RuntimeException(e);
-            }
-
-            try {
-                return f.waitResponse(timeout, unit);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        } finally {
-            responseHandler.releaseFuture(f);
-        }
+        return (LabelValuesResponse) sendRequest(reqBuilder.build(), timeout, unit);
     }
 
     @Override
-    public ChannelFuture write(Series... series) {
+    public ResponseFuture write(Series... series) {
         return write(Arrays.asList(series));
     }
 
     @Override
-    public ChannelFuture write(Collection<Series> series) {
+    public ResponseFuture write(Collection<Series> series) {
         if (series == null || series.size() <= 0) {
             throw new RuntimeException("some series should be provided");
-        }
-
-        String addr = serviceAddrProvider.getServiceAddr();
-        if (addr == null) {
-            throw new RuntimeException("serviceAddrProvider can not provide any addr");
-        }
-
-        Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
         }
 
         AddRequest.Builder reqBuilder = AddRequest.newBuilder();
         reqBuilder.addSeries(series);
 
-        Message request = new Message(opaque.getAndIncrement(), reqBuilder.build());
-        try {
-            ChannelFuture f;
-            if (this.clientConfig.isFlushChannelOnEachWrite()) {
-                f = ch.writeAndFlush(request);
-            } else {
-                f = ch.write(request);
-            }
-
-            if (!ch.isWritable() && ch.isOpen()) {
-                ch.flush();
-                if (!f.awaitUninterruptibly(awaitBackoffOnWrite, TimeUnit.MILLISECONDS)) {
-                    awaitBackoffOnWrite = Util.exponential(awaitBackoffOnWrite, 5, 60);
-                }
-            }
-
-            return f;
-        } catch (Exception e) {
-            channelTables.remove(addr);
-            ch.close();
-            throw new RuntimeException(e);
-        }
+        return this.sendRequest(reqBuilder.build());
     }
 
     @Override
@@ -276,6 +205,76 @@ public class BaudClient implements Client {
         }
 
         this.eventLoopGroup.shutdownGracefully();
+    }
+
+    private BaudMessage sendRequest(BaudMessage request, long timeout, TimeUnit unit) {
+        String addr = serviceAddrProvider.getServiceAddr();
+        if (addr == null) {
+            throw new RuntimeException("no server was found");
+        }
+
+        Channel ch = getChannel(addr);
+        if (ch == null) {
+            throw new RuntimeException("can't connect to server");
+        }
+
+        Message tcpMsg = new Message(opaque.getAndIncrement(), request);
+
+        ResponseFuture f = new ResponseFuture(tcpMsg.getOpaque());
+        responseHandler.registerFuture(f);
+
+        try {
+            try {
+                ch.writeAndFlush(tcpMsg);
+            } catch (Exception e) {
+                channelTables.remove(addr);
+                ch.close();
+                throw new RuntimeException(e);
+            }
+
+            try {
+                return f.await(timeout, unit);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } finally {
+            responseHandler.releaseFuture(f);
+        }
+    }
+
+    private ResponseFuture sendRequest(BaudMessage request) {
+        String addr = serviceAddrProvider.getServiceAddr();
+        if (addr == null) {
+            throw new RuntimeException("no server was found");
+        }
+
+        Channel ch = getChannel(addr);
+        if (ch == null) {
+            throw new RuntimeException("can't connect to server");
+        }
+
+        Message tcpMsg = new Message(opaque.getAndIncrement(), request);
+
+        ResponseFuture f = new ResponseFuture(tcpMsg.getOpaque());
+        responseHandler.registerFuture(f);
+
+        try {
+            if (this.clientConfig.isFlushChannelOnEachWrite()) {
+                ch.writeAndFlush(tcpMsg);
+            } else {
+                ch.write(tcpMsg);
+
+                if (!ch.isWritable() && ch.isOpen()) {
+                    ch.flush();
+                }
+            }
+        } catch (Exception e) {
+            channelTables.remove(addr);
+            ch.close();
+            throw new RuntimeException(e);
+        }
+
+        return f;
     }
 
     private Channel getChannel(String addr) {

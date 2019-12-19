@@ -23,8 +23,6 @@ public class ClientConfig {
     protected int writeBufLowWaterMark = 32 * 1024;
     protected int writeBufHighWaterMark = 256 * 1024;
     protected int maxResponseFrameLength = 150 * 1024 * 1024;
-    protected long minBackoffOnWrite = 5;
-    protected long maxBackoffOnWrite = 60;
     protected boolean flushChannelOnEachWrite = false;
 
     protected long channelNotActiveInterval = 1000 * 60;
@@ -53,14 +51,6 @@ public class ClientConfig {
 
     public int getMaxResponseFrameLength() {
         return maxResponseFrameLength;
-    }
-
-    public long getMinBackoffOnWrite() {
-        return minBackoffOnWrite;
-    }
-
-    public long getMaxBackoffOnWrite() {
-        return maxBackoffOnWrite;
     }
 
     public boolean isFlushChannelOnEachWrite() {

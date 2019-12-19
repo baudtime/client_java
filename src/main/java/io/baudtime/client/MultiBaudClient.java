@@ -5,7 +5,6 @@ import io.baudtime.message.LabelValuesResponse;
 import io.baudtime.message.QueryResponse;
 import io.baudtime.message.Series;
 import io.baudtime.message.SeriesLabelsResponse;
-import io.netty.channel.ChannelFuture;
 
 import java.util.Collection;
 import java.util.Date;
@@ -76,13 +75,13 @@ public class MultiBaudClient implements Client {
     }
 
     @Override
-    public ChannelFuture write(Series... series) {
+    public ResponseFuture write(Series... series) {
         checkCurrentSelect();
         return current.write(series);
     }
 
     @Override
-    public ChannelFuture write(Collection<Series> series) {
+    public ResponseFuture write(Collection<Series> series) {
         checkCurrentSelect();
         return current.write(series);
     }

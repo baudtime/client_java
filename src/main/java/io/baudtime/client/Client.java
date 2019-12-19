@@ -34,9 +34,9 @@ public interface Client {
 
     LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit);
 
-    ChannelFuture write(Series... series);
+    ResponseFuture write(Series... series);
 
-    ChannelFuture write(Collection<Series> series);
+    ResponseFuture write(Collection<Series> series);
 
     void close();
 }
