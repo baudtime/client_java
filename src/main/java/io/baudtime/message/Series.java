@@ -139,7 +139,7 @@ public class Series {
                 ps.add(pb.build());
             }
 
-            Assert.isNotNegative(ps.size(), "series has no points");
+            Assert.isPositive(ps.size(), "series has no points");
 
             return new Series(ls, ps);
         }

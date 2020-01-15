@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
 import io.baudtime.message.*;
 import io.baudtime.util.Util;
@@ -59,10 +59,7 @@ class RequestEncoder extends MessageToByteEncoder<Message> {
             out.writeBytes(rawBytes);
         } catch (Exception e) {
             log.error("encode exception, " + ctx.channel().remoteAddress(), e);
-            if (request != null) {
-                log.error(request.toString());
-            }
-            ctx.channel().close();
+            ctx.close();
         }
     }
 }

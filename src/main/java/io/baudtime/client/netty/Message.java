@@ -13,11 +13,24 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
-import io.baudtime.message.GeneralResponse;
+import io.baudtime.message.BaudMessage;
 
-@Deprecated
-public interface WriteResponseHook {
-    void onReceiveResponse(long opaque, GeneralResponse response);
+class Message {
+    private long opaque;
+    private BaudMessage raw;
+
+    Message(long opaque, BaudMessage raw) {
+        this.opaque = opaque;
+        this.raw = raw;
+    }
+
+    long getOpaque() {
+        return opaque;
+    }
+
+    BaudMessage getRaw() {
+        return raw;
+    }
 }

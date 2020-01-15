@@ -53,7 +53,7 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
                 addrs.add(address.getHostAddress() + ":" + servicePort);
             }
         }
-        Collections.sort(addrs);
+        Collections.shuffle(addrs);
         this.healthyAddrs = addrs;
 
         this.checkInterval = checkInterval;

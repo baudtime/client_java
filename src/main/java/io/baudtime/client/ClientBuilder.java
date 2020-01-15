@@ -15,76 +15,176 @@
 
 package io.baudtime.client;
 
+import io.baudtime.client.netty.*;
 import io.baudtime.discovery.ServiceAddrProvider;
+import io.baudtime.message.BaudMessage;
+import io.baudtime.message.GeneralResponse;
 
-public class ClientBuilder extends ClientConfig {
-    private ServiceAddrProvider serviceAddrProvider;
-    private WriteResponseHook writeResponseHook;
+import java.util.HashMap;
+import java.util.Map;
 
-    public ClientBuilder serviceAddrProvider(ServiceAddrProvider serviceAddrProvider) {
-        this.serviceAddrProvider = serviceAddrProvider;
-        return this;
+public abstract class ClientBuilder<B, C extends Client> {
+
+    protected FutureListener futureListener;
+    protected ClientConfig.Builder configBuilder = new ClientConfig.Builder();
+
+    public B writeResponseHook(FutureListener futureListener) {
+        this.futureListener = futureListener;
+        return thisBuilder();
     }
 
-    public ClientBuilder writeResponseHook(WriteResponseHook writeResponseHook) {
-        this.writeResponseHook = writeResponseHook;
-        return this;
+    /*
+     * @deprecated Use FutureListener instead
+     */
+    @Deprecated
+    public B writeResponseHook(final WriteResponseHook hook) {
+        this.futureListener = new FutureListener() {
+            private WriteResponseHook responseHook = hook;
+
+            @Override
+            public void onFinished(Future future) {
+                BaudMessage response = future.getResponse();
+                if (future.isSendRequestOK() && response instanceof GeneralResponse) {
+                    this.responseHook.onReceiveResponse(future.getOpaque(), (GeneralResponse) response);
+                }
+            }
+        };
+        return thisBuilder();
     }
 
-    public ClientBuilder connectTimeoutMillis(int connectTimeoutMillis) {
-        this.connectTimeoutMillis = connectTimeoutMillis;
-        return this;
+    public B connectTimeoutMillis(int connectTimeoutMillis) {
+        this.configBuilder.connectTimeoutMillis(connectTimeoutMillis);
+        return thisBuilder();
     }
 
-    public ClientBuilder socketSndBufSize(int socketSndBufSize) {
-        this.socketSndBufSize = socketSndBufSize;
-        return this;
+    public B socketSndBufSize(int socketSndBufSize) {
+        this.configBuilder.connectTimeoutMillis(socketSndBufSize);
+        return thisBuilder();
     }
 
-    public ClientBuilder socketRcvBufSize(int socketRcvBufSize) {
-        this.socketRcvBufSize = socketRcvBufSize;
-        return this;
+    public B socketRcvBufSize(int socketRcvBufSize) {
+        this.configBuilder.socketRcvBufSize(socketRcvBufSize);
+        return thisBuilder();
     }
 
-    public ClientBuilder writeBufLowWaterMark(int writeBufLowWaterMark) {
-        this.writeBufLowWaterMark = writeBufLowWaterMark;
-        return this;
+    public B writeBufLowWaterMark(int writeBufLowWaterMark) {
+        this.configBuilder.writeBufLowWaterMark(writeBufLowWaterMark);
+        return thisBuilder();
     }
 
-    public ClientBuilder writeBufHighWaterMark(int writeBufHighWaterMark) {
-        this.writeBufHighWaterMark = writeBufHighWaterMark;
-        return this;
+    public B writeBufHighWaterMark(int writeBufHighWaterMark) {
+        this.configBuilder.writeBufHighWaterMark(writeBufHighWaterMark);
+        return thisBuilder();
     }
 
-    public ClientBuilder maxResponseFrameLength(int maxResponseFrameLength) {
-        this.maxResponseFrameLength = maxResponseFrameLength;
-        return this;
+    public B maxResponseFrameLength(int maxResponseFrameLength) {
+        this.configBuilder.maxResponseFrameLength(maxResponseFrameLength);
+        return thisBuilder();
     }
 
-    public ClientBuilder flushChannelOnEachWrite(boolean flushChannelOnEachWrite) {
-        this.flushChannelOnEachWrite = flushChannelOnEachWrite;
-        return this;
+    public B maxConnectionsOnEachServer(int maxConnectionsOnEachServer) {
+        this.configBuilder.maxConnectionsOnEachServer(maxConnectionsOnEachServer);
+        return thisBuilder();
     }
 
-    public ClientBuilder channelNotActiveInterval(long channelNotActiveInterval) {
-        this.channelNotActiveInterval = channelNotActiveInterval;
-        return this;
+    public B flushChannelOnEachWrite(boolean flushChannelOnEachWrite) {
+        this.configBuilder.flushChannelOnEachWrite(flushChannelOnEachWrite);
+        return thisBuilder();
     }
 
-    public ClientBuilder channelMaxIdleTimeSeconds(int channelMaxIdleTimeSeconds) {
-        this.channelMaxIdleTimeSeconds = channelMaxIdleTimeSeconds;
-        return this;
+    public B channelMaxIdleTimeSeconds(int channelMaxIdleTimeSeconds) {
+        this.configBuilder.channelMaxIdleTimeSeconds(channelMaxIdleTimeSeconds);
+        return thisBuilder();
     }
 
-    public ClientBuilder closeSocketIfTimeout(boolean closeSocketIfTimeout) {
-        this.closeSocketIfTimeout = closeSocketIfTimeout;
-        return this;
+    public B stickyWorkerNum(int workerNum) {
+        this.configBuilder.stickyWorkerNum(workerNum);
+        return thisBuilder();
     }
 
-    public Client build() {
-        if (serviceAddrProvider == null) {
-            throw new RuntimeException("serviceAddrProvider must be set");
+    public B stickyBatchSize(int batchSize) {
+        this.configBuilder.stickyBatchSize(batchSize);
+        return thisBuilder();
+    }
+
+    public B stickyQueueCapacity(int queueCapacity) {
+        this.configBuilder.stickyQueueCapacity(queueCapacity);
+        return thisBuilder();
+    }
+
+    public abstract C build();
+
+    public abstract B thisBuilder();
+
+    public <Records> RecordsAdaptor<C, Records> build(RecordsAdaptor.RecordsConverter<Records> recordsConverter) {
+        return RecordsAdaptor.wrap(build(), recordsConverter);
+    }
+
+    public static class SingleEndpointClientBuilder extends ClientBuilder<SingleEndpointClientBuilder, BaudClient> {
+        private ServiceAddrProvider serviceAddrProvider;
+
+        public SingleEndpointClientBuilder serviceAddrProvider(ServiceAddrProvider serviceAddrProvider) {
+            this.serviceAddrProvider = serviceAddrProvider;
+            return this;
         }
-        return new BaudClient(this, serviceAddrProvider, writeResponseHook);
+
+        @Override
+        public BaudClient build() {
+            if (serviceAddrProvider == null) {
+                throw new RuntimeException("serviceAddrProvider must be provided");
+            }
+            ClientConfig clientConfig = configBuilder.build();
+
+            TcpClient tcpClient = clientConfig.getStickyConfig() == null ? new RoundRobinClient(clientConfig, serviceAddrProvider, futureListener) :
+                    new StickyClient(clientConfig, serviceAddrProvider, futureListener);
+            return new BaudClient(tcpClient);
+        }
+
+        @Override
+        public SingleEndpointClientBuilder thisBuilder() {
+            return this;
+        }
+    }
+
+    public static class MultiEndpointClientBuilder extends ClientBuilder<MultiEndpointClientBuilder, MultiEndpointClient> {
+        private Map<String, ServiceAddrProvider> multiEndpointAddrProviders = new HashMap<String, ServiceAddrProvider>();
+
+        public MultiEndpointClientBuilder serviceAddrProvider(String endpoint, ServiceAddrProvider serviceAddrProvider) {
+            this.multiEndpointAddrProviders.put(endpoint, serviceAddrProvider);
+            return this;
+        }
+
+        public MultiEndpointClient build() {
+            if (multiEndpointAddrProviders.isEmpty()) {
+                throw new RuntimeException("serviceAddrProvider must be provided");
+            }
+
+            ClientConfig clientConfig = configBuilder.build();
+
+            MultiEndpointClient multiEndpointClient = new MultiEndpointClient();
+            for (Map.Entry<String, ServiceAddrProvider> e : multiEndpointAddrProviders.entrySet()) {
+                String endPoint = e.getKey();
+                ServiceAddrProvider addrProvider = e.getValue();
+
+                TcpClient tcpClient = clientConfig.getStickyConfig() == null ? new RoundRobinClient(clientConfig, addrProvider, futureListener) :
+                        new StickyClient(clientConfig, addrProvider, futureListener);
+
+                multiEndpointClient.addEndpoint(endPoint, new BaudClient(tcpClient));
+            }
+            return multiEndpointClient;
+        }
+
+        @Override
+        public MultiEndpointClientBuilder thisBuilder() {
+            return this;
+        }
+    }
+
+    public static SingleEndpointClientBuilder newClientBuilder() {
+        return new SingleEndpointClientBuilder();
+    }
+
+    public static MultiEndpointClientBuilder newMultiEndpointClientBuilder() {
+        return new MultiEndpointClientBuilder();
     }
 }

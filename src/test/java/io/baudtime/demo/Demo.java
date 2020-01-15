@@ -2,9 +2,9 @@ package io.baudtime.demo;
 
 import io.baudtime.client.Client;
 import io.baudtime.client.ClientBuilder;
-import io.baudtime.client.WriteResponseHook;
+import io.baudtime.client.netty.Future;
+import io.baudtime.client.netty.FutureListener;
 import io.baudtime.discovery.StaticServiceAddrProvider;
-import io.baudtime.message.GeneralResponse;
 import io.baudtime.message.QueryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,10 +17,10 @@ public class Demo {
     private static String[] addrs = {"127.0.0.1:8088", "localhost:8088"};
 
     public static void main(String[] args) {
-        Client cli = new ClientBuilder().serviceAddrProvider(new StaticServiceAddrProvider(addrs)).writeResponseHook(new WriteResponseHook() {
+        Client cli = ClientBuilder.newClientBuilder().serviceAddrProvider(new StaticServiceAddrProvider(addrs)).writeResponseHook(new FutureListener() {
             @Override
-            public void onReceiveResponse(long opaque, GeneralResponse writeResponse) {
-                logger.info("{} {}", opaque, writeResponse.getMessage());
+            public void onFinished(Future future) {
+                logger.info("{}", future.getOpaque());
             }
         }).build();
 

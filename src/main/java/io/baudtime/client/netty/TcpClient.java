@@ -13,29 +13,18 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
-import io.baudtime.message.LabelValuesResponse;
-import io.baudtime.message.QueryResponse;
+import io.baudtime.message.BaudMessage;
 import io.baudtime.message.Series;
-import io.baudtime.message.SeriesLabelsResponse;
 
 import java.util.Collection;
-import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
-public interface Client {
-    QueryResponse instantQuery(String queryExp, Date time, long timeout, TimeUnit unit);
+public interface TcpClient {
+    BaudMessage query(BaudMessage request, long timeout, TimeUnit unit);
 
-    QueryResponse rangeQuery(String queryExp, Date start, Date end, long step, long timeout, TimeUnit unit);
-
-    SeriesLabelsResponse seriesLabels(Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit);
-
-    LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit);
-
-    void write(Series... series);
-
-    void write(Collection<Series> series);
+    void append(Collection<Series> series);
 
     void close();
 }

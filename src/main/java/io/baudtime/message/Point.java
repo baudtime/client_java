@@ -61,7 +61,7 @@ public class Point {
         }
 
         public Point build() {
-            Assert.isNotNegative(this.t);
+            Assert.isPositive(this.t);
 
             return new Point(this.t, this.v);
         }

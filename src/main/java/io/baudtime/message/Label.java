@@ -56,7 +56,7 @@ public class Label {
 
         public Label build() {
             Assert.notEmpty(this.name);
-            Assert.notEmpty(this.value, this.name + " should be set value");
+            Assert.notEmpty(this.value);
 
             return new Label(this.name, this.value);
         }
@@ -65,7 +65,7 @@ public class Label {
     public static final Comparator<Label> comparator = new Comparator<Label>() {
         @Override
         public int compare(Label l1, Label l2) {
-            return l1.getName().compareToIgnoreCase(l2.getName());
+            return l1.getName().compareTo(l2.getName());
         }
     };
 }

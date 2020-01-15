@@ -13,54 +13,38 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
-import io.baudtime.message.BaudMessage;
-import io.baudtime.message.GeneralResponse;
 import io.baudtime.util.ConcurrentReferenceHashMap;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.util.ReferenceCountUtil;
 
 
 @Sharable
 class ResponseHandler extends SimpleChannelInboundHandler<Message> {
 
-    private final ConcurrentReferenceHashMap<Long, ResponseFuture> futures = new ConcurrentReferenceHashMap<Long, ResponseFuture>();
-    private WriteResponseHook writeResponseHook;
-
-    public ResponseHandler() {
-    }
-
-    public ResponseHandler(WriteResponseHook writeResponseHook) {
-        this.writeResponseHook = writeResponseHook;
-    }
+    private final ConcurrentReferenceHashMap<Long, Future> futures = new ConcurrentReferenceHashMap<Long, Future>();
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) {
-        BaudMessage raw = msg.getRaw();
-        if (raw instanceof GeneralResponse) {
-            if (this.writeResponseHook != null) {
-                this.writeResponseHook.onReceiveResponse(msg.getOpaque(), (GeneralResponse) raw);
+        Future future = futures.get(msg.getOpaque());
+        if (future != null) {
+            try {
+                future.setResponse(msg.getRaw()).finish();
+            } finally {
+                futures.remove(future.getOpaque());
             }
         }
-
-        ResponseFuture future = futures.get(msg.getOpaque());
-        if (future != null) {
-            future.putResponse(raw);
-            futures.remove(future.getOpaque());
-        }
-        ReferenceCountUtil.release(msg);
     }
 
-    public void registerFuture(ResponseFuture future) {
+    public void registerFuture(Future future) {
         if (future != null) {
             futures.put(future.getOpaque(), future);
         }
     }
 
-    public void releaseFuture(ResponseFuture future) {
+    public void releaseFuture(Future future) {
         if (future != null) {
             futures.remove(future.getOpaque());
         }

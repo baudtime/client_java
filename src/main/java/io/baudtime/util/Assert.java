@@ -59,11 +59,21 @@ public class Assert {
         }
     }
 
-    public static void isNotNegative(double n) {
-        isNotNegative(n, null);
+    public static void notBiggerThan(double a, double b) {
+        notBiggerThan(a, b, null);
     }
 
-    public static void isNotNegative(double n, String message) {
+    public static void notBiggerThan(double a, double b, String message) {
+        if (a > b) {
+            throw new AssertException(message);
+        }
+    }
+
+    public static void isPositive(double n) {
+        isPositive(n, null);
+    }
+
+    public static void isPositive(double n, String message) {
         if (n <= 0) {
             throw new AssertException(message);
         }

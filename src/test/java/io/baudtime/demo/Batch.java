@@ -1,18 +1,19 @@
 package io.baudtime.demo;
 
-import io.baudtime.client.Client;
 import io.baudtime.client.ClientBuilder;
-import io.baudtime.client.WriteResponseHook;
+import io.baudtime.client.MultiEndpointClient;
+import io.baudtime.client.RecordsAdaptor;
+import io.baudtime.client.netty.Future;
+import io.baudtime.client.netty.FutureListener;
 import io.baudtime.discovery.StaticServiceAddrProvider;
-import io.baudtime.message.GeneralResponse;
 import io.baudtime.message.Label;
 import io.baudtime.message.Point;
 import io.baudtime.message.Series;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 public class Batch {
@@ -20,17 +21,25 @@ public class Batch {
     private static String[] addrs = {"127.0.0.1:8088"};
 
     public static void main(String[] args) {
-        Client cli = new ClientBuilder().flushChannelOnEachWrite(true)
-                .serviceAddrProvider(new StaticServiceAddrProvider(2, TimeUnit.SECONDS, addrs))
-                .writeResponseHook(new WriteResponseHook() {
+        MultiEndpointClient cli = ClientBuilder.newMultiEndpointClientBuilder().flushChannelOnEachWrite(true)
+                .serviceAddrProvider("default", new StaticServiceAddrProvider(2, TimeUnit.SECONDS, addrs))
+                .writeResponseHook(new FutureListener() {
                     @Override
-                    public void onReceiveResponse(long opaque, GeneralResponse response) {
-                        logger.info("{} {} {}", opaque, response.getMessage(), response.getStatus());
+                    public void onFinished(Future future) {
+                        logger.info("{}", future.getOpaque());
                     }
-                }).build();
+                }).stickyWorkerNum(2).stickyBatchSize(512).stickyQueueCapacity(1024).build();
+
+        RecordsAdaptor<MultiEndpointClient, HashMap<Long, Series>> wrapped = RecordsAdaptor.wrap(cli, new RecordsAdaptor.RecordsConverter<HashMap<Long, Series>>() {
+            @Override
+            public Collection<Series> convert(HashMap<Long, Series> series) {
+                return series.values();
+            }
+        });
+
+        wrapped.raw().use("default");
 
         try {
-            List<Series> s = new LinkedList<Series>();
             long lastT = 0;
 
             Series.Builder sb1 = Series.newBuilder();
@@ -43,9 +52,10 @@ public class Batch {
             Point.Builder pb = sb1.addPointBuilder();
 
             while (true) {
+                HashMap<Long, Series> m = new HashMap<Long, Series>();
+
                 long t = System.currentTimeMillis();
                 while (t <= lastT) {
-                    t++;
                     t = System.currentTimeMillis();
                 }
                 lastT = t;
@@ -54,12 +64,11 @@ public class Batch {
                     lb.setName("state").setValue(String.valueOf(i));
                     pb.setT(t - i).setV(i);
 
-                    s.add(sb1.build());
+                    m.put(t, sb1.build());
                 }
 
                 try {
-                    cli.write(s);
-                    s.clear();
+                    wrapped.write(m);
                 } catch (Exception e) {
                     logger.error("Exception", e);
                 }

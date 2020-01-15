@@ -121,45 +121,62 @@ public class AddRequest implements BaudMessage {
     public static class Builder {
 
         private final Map<String, Series.Builder> buf = new HashMap<String, Series.Builder>();
+        private int size;
+
+        public Builder addSeries(Series series) {
+            List<Label> lbls = series.getLabels();
+
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < lbls.size(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                sb.append(lbls.get(i).getName());
+                sb.append('=');
+                sb.append(lbls.get(i).getValue());
+            }
+            String k = sb.toString();
+
+            Series.Builder builder = buf.get(k);
+            if (builder == null) {
+                builder = Series.newBuilder();
+                builder.addLabels(lbls);
+                buf.put(k, builder);
+            }
+            builder.addPoints(series.getPoints());
+
+            size++;
+
+            return this;
+        }
 
         public Builder addSeries(Iterable<Series> series) {
             for (Series s : series) {
-                List<Label> lbls = s.getLabels();
-
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < lbls.size(); i++) {
-                    if (i > 0) {
-                        sb.append(',');
-                    }
-                    sb.append(lbls.get(i).getName());
-                    sb.append('=');
-                    sb.append(lbls.get(i).getValue());
-                }
-                String k = sb.toString();
-
-                Series.Builder builder = buf.get(k);
-                if (builder == null) {
-                    builder = Series.newBuilder();
-                    builder.addLabels(lbls);
-                    buf.put(k, builder);
-                }
-                builder.addPoints(s.getPoints());
+                addSeries(s);
             }
 
             return this;
         }
 
+        public int size() {
+            return size;
+        }
+
         public AddRequest build() {
-            ArrayList<Series> series = new ArrayList<Series>();
+            try {
+                ArrayList<Series> series = new ArrayList<Series>();
 
-            for (Map.Entry<String, Series.Builder> e : buf.entrySet()) {
-                series.add(e.getValue().fastBuild());
+                for (Map.Entry<String, Series.Builder> e : buf.entrySet()) {
+                    series.add(e.getValue().fastBuild());
+                }
+
+                AddRequest r = new AddRequest();
+                r.series = series;
+
+                return r;
+            } finally {
+                buf.clear();
             }
-
-            AddRequest r = new AddRequest();
-            r.series = series;
-
-            return r;
         }
     }
 }

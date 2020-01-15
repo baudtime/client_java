@@ -136,7 +136,7 @@ public class SeriesLabelsRequest implements BaudMessage {
             Assert.notEmpty(this.start);
             Assert.notEmpty(this.end);
             Assert.notEmpty(this.timeout);
-            Assert.isNotNegative(this.matches.size());
+            Assert.isPositive(this.matches.size());
 
             SeriesLabelsRequest r = new SeriesLabelsRequest();
             r.start = this.start;

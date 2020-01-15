@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class StaticServiceAddrProvider implements ServiceAddrProvider {
+    private static final Logger log = LoggerFactory.getLogger(StaticServiceAddrProvider.class);
 
     protected List<String> healthyAddrs;
     protected Set<String> unhealthyAddrs = new HashSet<String>(128);
@@ -40,8 +41,6 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
     protected final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
     protected long checkInterval;
     protected TimeUnit checkTimeUnit;
-
-    private static final Logger log = LoggerFactory.getLogger(StaticServiceAddrProvider.class);
 
     //an addr is like "192.168.0.1:8087"
     public StaticServiceAddrProvider(String... addrs) {
@@ -57,7 +56,7 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         this.checkTimeUnit = timeUnit;
 
         this.healthyAddrs = new LinkedList<String>(Arrays.asList(addrs));
-        Collections.sort(this.healthyAddrs);
+        Collections.shuffle(this.healthyAddrs);
     }
 
     public StaticServiceAddrProvider(long checkInterval, TimeUnit timeUnit, List<String> addrs) {
@@ -65,7 +64,7 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         this.checkTimeUnit = timeUnit;
 
         this.healthyAddrs = addrs;
-        Collections.sort(this.healthyAddrs);
+        Collections.shuffle(this.healthyAddrs);
     }
 
     @Override
@@ -80,12 +79,13 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
                 return null;
             }
 
-            int i;
+            int i, j;
             do {
                 i = iter.get();
-            } while (!iter.compareAndSet(i, (i + 1) % healthyHostNum));
+                j = (i + 1) % healthyHostNum;
+            } while (!iter.compareAndSet(i, j));
 
-            return healthyAddrs.get(i);
+            return healthyAddrs.get(j);
         } finally {
             l.unlock();
             if (healthyHostNum <= 0) {
@@ -123,7 +123,7 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
                 healthyAddrs.add(addr);
             }
             unhealthyAddrs.remove(addr);
-            Collections.sort(healthyAddrs);
+            Collections.shuffle(healthyAddrs);
         } finally {
             l.unlock();
         }

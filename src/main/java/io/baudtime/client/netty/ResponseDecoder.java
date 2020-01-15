@@ -13,7 +13,7 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
 import io.baudtime.message.*;
 import io.baudtime.util.Util;
@@ -31,7 +31,7 @@ class ResponseDecoder extends LengthFieldBasedFrameDecoder {
     }
 
     @Override
-    public Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+    public Object decode(ChannelHandlerContext ctx, ByteBuf in) {
         ByteBuf frame = null;
         ByteBuf raw = null;
 
@@ -64,9 +64,9 @@ class ResponseDecoder extends LengthFieldBasedFrameDecoder {
                     throw new RuntimeException("unknown type");
                 }
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("decode exception, " + ctx.channel().remoteAddress(), e);
-            throw e;
+            ctx.close();
         } finally {
             if (null != raw) {
                 raw.release();

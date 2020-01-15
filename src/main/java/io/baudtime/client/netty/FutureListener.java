@@ -13,24 +13,8 @@
  * limitations under the License.
  */
 
-package io.baudtime.client;
+package io.baudtime.client.netty;
 
-import io.baudtime.message.BaudMessage;
-
-class Message {
-    private long opaque;
-    private BaudMessage raw;
-
-    Message(long opaque, BaudMessage raw) {
-        this.opaque = opaque;
-        this.raw = raw;
-    }
-
-    long getOpaque() {
-        return opaque;
-    }
-
-    BaudMessage getRaw() {
-        return raw;
-    }
+public interface FutureListener {
+    void onFinished(Future future);
 }
