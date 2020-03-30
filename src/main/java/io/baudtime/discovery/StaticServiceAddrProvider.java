@@ -151,7 +151,7 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         l.lock();
 
         try {
-            log.debug("all unhealthy addrs", unhealthyAddrs.toArray());
+            log.debug("unhealthy addrs:", unhealthyAddrs.toArray());
             for (String addr : unhealthyAddrs) {
                 if (ping(addr)) {
                     toRecover.add(addr);

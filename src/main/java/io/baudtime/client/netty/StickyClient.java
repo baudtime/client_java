@@ -84,7 +84,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         for (Worker worker : workers) {
             worker.exit();
         }
-        this.workerThreads.shutdownNow();
+        this.workerThreads.shutdown();
         super.close();
     }
 
@@ -209,7 +209,13 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                 throw new RuntimeException("no server was found");
             }
 
-            Channel ch = getChannel(addr);
+            Channel ch = null;
+            try {
+                ch = getChannel(addr);
+            } catch (Exception e) {
+                log.error("failed to switch to " + addr, e);
+            }
+
             if (ch == null) {
                 backOff = Util.exponential(backOff, 1, 15000);
                 return;

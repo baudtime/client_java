@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MultiEndpointClient implements Client {
 
@@ -33,6 +34,8 @@ public class MultiEndpointClient implements Client {
     public volatile Client current;
 
     public ConcurrentHashMap<String, Client> clients = new ConcurrentHashMap<String, Client>();
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     void addEndpoint(String endpoint, Client client) {
         clients.put(endpoint, client);
@@ -114,9 +117,16 @@ public class MultiEndpointClient implements Client {
 
     @Override
     public void close() {
-        for (Client c : clients.values()) {
-            c.close();
+        if (closed.compareAndSet(false, true)) {
+            for (Client c : clients.values()) {
+                c.close();
+            }
         }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed.get();
     }
 
     private void checkCurrentSelect() {

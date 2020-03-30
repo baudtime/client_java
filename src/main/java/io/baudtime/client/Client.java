@@ -38,4 +38,6 @@ public interface Client {
     void write(Collection<Series> series);
 
     void close();
+
+    boolean isClosed();
 }

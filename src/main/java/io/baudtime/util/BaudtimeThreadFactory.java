@@ -13,7 +13,7 @@ public class BaudtimeThreadFactory implements ThreadFactory {
         threadNumber = new AtomicInteger(1);
         SecurityManager s = System.getSecurityManager();
         group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
-        namePrefix = "pool-" + poolNumber.getAndIncrement() + "-" + nameSuffix + "-";
+        namePrefix = "baudtime-" + poolNumber.getAndIncrement() + "-" + nameSuffix + "-";
     }
 
     @Override

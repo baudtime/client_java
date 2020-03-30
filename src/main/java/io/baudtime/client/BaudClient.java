@@ -22,10 +22,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BaudClient implements Client {
 
     private final TcpClient tcpClient;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     BaudClient(TcpClient tcpClient) {
         this.tcpClient = tcpClient;
@@ -127,6 +129,13 @@ public class BaudClient implements Client {
 
     @Override
     public void close() {
-        tcpClient.close();
+        if (closed.compareAndSet(false, true)) {
+            tcpClient.close();
+        }
+    }
+
+    @Override
+    public boolean isClosed() {
+        return closed.get();
     }
 }

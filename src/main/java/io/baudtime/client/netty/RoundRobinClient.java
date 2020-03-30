@@ -32,15 +32,16 @@ import io.netty.channel.pool.ChannelPoolMap;
 import io.netty.channel.pool.FixedChannelPool;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.flush.FlushConsolidationHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
+import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 
 import java.util.Collection;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class RoundRobinClient implements TcpClient {
-    private static final Logger log = LoggerFactory.getLogger(RoundRobinClient.class);
 
     protected final AtomicLong opaque = new AtomicLong(0);
     protected final ClientConfig clientConfig;
@@ -73,6 +74,13 @@ public class RoundRobinClient implements TcpClient {
             channelClass = NioSocketChannel.class;
         }
 
+        final GlobalTrafficShapingHandler trafficShapingHandler = (clientConfig.getReadFlowControlLimit() > 0 || clientConfig.getWriteFlowControlLimit() > 0) ?
+                new GlobalTrafficShapingHandler(Executors.newScheduledThreadPool(3),
+                        clientConfig.getWriteFlowControlLimit(), clientConfig.getReadFlowControlLimit(), 500) : null;
+        if (trafficShapingHandler != null && clientConfig.getWriteFlowControlLimit() > 0) {
+            trafficShapingHandler.setMaxGlobalWriteSize(clientConfig.getWriteFlowControlLimit() + clientConfig.getWriteFlowControlLimit() / 10);
+        }
+
         this.poolMap = new AbstractChannelPoolMap<String, FixedChannelPool>() {
             @Override
             protected FixedChannelPool newPool(String key) {
@@ -100,8 +108,17 @@ public class RoundRobinClient implements TcpClient {
                         pipeline.addLast(
                                 new ResponseDecoder(clientConfig.getMaxResponseFrameLength()),
                                 new RequestEncoder(),
-//                                new IdleStateHandler(0, 0, clientConfig.getChannelMaxIdleTimeSeconds()),
+                                new IdleStateHandler(0, 0, clientConfig.getChannelMaxIdleTimeSeconds()) {
+                                    @Override
+                                    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) {
+                                        ctx.close();
+                                    }
+                                },
                                 responseHandler);
+
+                        if (trafficShapingHandler != null) {
+                            pipeline.addLast(trafficShapingHandler);
+                        }
 
                         if (!clientConfig.isFlushChannelOnEachWrite()) {
                             pipeline.addLast(new FlushConsolidationHandler(256, true));
@@ -123,10 +140,6 @@ public class RoundRobinClient implements TcpClient {
         }
 
         Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
-        }
-
         Message tcpMsg = new Message(opaque.getAndIncrement(), request);
 
         Future f = new Future(tcpMsg);
@@ -151,10 +164,6 @@ public class RoundRobinClient implements TcpClient {
         }
 
         Channel ch = getChannel(addr);
-        if (ch == null) {
-            throw new RuntimeException("can't connect to server");
-        }
-
         try {
             AddRequest.Builder reqBuilder = AddRequest.newBuilder();
             reqBuilder.addSeries(series);
@@ -191,10 +200,10 @@ public class RoundRobinClient implements TcpClient {
                 io.netty.util.concurrent.Future<Channel> future = pool.acquire();
                 return future.get(2 * clientConfig.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
             } catch (Exception e) {
-                return null;
+                throw new RuntimeException("can't connect to " + addr, e);
             }
         }
-        return null;
+        throw new RuntimeException("can't build connection pool for " + addr);
     }
 
     protected void putChannel(String addr, Channel channel) {

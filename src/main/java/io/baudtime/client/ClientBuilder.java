@@ -77,6 +77,16 @@ public abstract class ClientBuilder<B, C extends Client> {
         return thisBuilder();
     }
 
+    public B writeFlowControlLimit(int writeFlowControlLimit) {
+        this.configBuilder.writeFlowControlLimit(writeFlowControlLimit);
+        return thisBuilder();
+    }
+
+    public B readFlowControlLimit(int readFlowControlLimit) {
+        this.configBuilder.readFlowControlLimit(readFlowControlLimit);
+        return thisBuilder();
+    }
+
     public B maxResponseFrameLength(int maxResponseFrameLength) {
         this.configBuilder.maxResponseFrameLength(maxResponseFrameLength);
         return thisBuilder();

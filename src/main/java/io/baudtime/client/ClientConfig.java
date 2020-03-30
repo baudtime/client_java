@@ -25,6 +25,8 @@ public class ClientConfig {
     private int socketRcvBufSize;
     private int writeBufLowWaterMark;
     private int writeBufHighWaterMark;
+    private int writeFlowControlLimit;
+    private int readFlowControlLimit;
     private int maxResponseFrameLength;
 
     private int maxConnectionsOnEachServer;
@@ -54,6 +56,14 @@ public class ClientConfig {
         return writeBufHighWaterMark;
     }
 
+    public int getWriteFlowControlLimit() {
+        return writeFlowControlLimit;
+    }
+
+    public int getReadFlowControlLimit() {
+        return readFlowControlLimit;
+    }
+
     public int getMaxResponseFrameLength() {
         return maxResponseFrameLength;
     }
@@ -80,12 +90,14 @@ public class ClientConfig {
         private int socketRcvBufSize = 65535;
         private int writeBufLowWaterMark = 32 * 1024;
         private int writeBufHighWaterMark = 64 * 1024;
+        private int writeFlowControlLimit;
+        private int readFlowControlLimit;
         private int maxResponseFrameLength = 150 * 1024 * 1024;
 
         private int maxConnectionsOnEachServer = 6;
         private boolean flushChannelOnEachWrite = false;
 
-        private int channelMaxIdleTimeSeconds = 120;
+        private int channelMaxIdleTimeSeconds = 600;
 
         private StickyConfig.Builder stickyConfigBuilder;
 
@@ -111,6 +123,16 @@ public class ClientConfig {
 
         public Builder writeBufHighWaterMark(int writeBufHighWaterMark) {
             this.writeBufHighWaterMark = writeBufHighWaterMark;
+            return this;
+        }
+
+        public Builder writeFlowControlLimit(int writeFlowControlLimit) {
+            this.writeFlowControlLimit = writeFlowControlLimit;
+            return this;
+        }
+
+        public Builder readFlowControlLimit(int readFlowControlLimit) {
+            this.readFlowControlLimit = readFlowControlLimit;
             return this;
         }
 
@@ -166,6 +188,8 @@ public class ClientConfig {
             config.socketRcvBufSize = this.socketRcvBufSize;
             config.writeBufLowWaterMark = this.writeBufLowWaterMark;
             config.writeBufHighWaterMark = this.writeBufHighWaterMark;
+            config.writeFlowControlLimit = this.writeFlowControlLimit;
+            config.readFlowControlLimit = this.readFlowControlLimit;
             config.maxResponseFrameLength = this.maxResponseFrameLength;
             config.maxConnectionsOnEachServer = this.maxConnectionsOnEachServer;
             config.flushChannelOnEachWrite = this.flushChannelOnEachWrite;
