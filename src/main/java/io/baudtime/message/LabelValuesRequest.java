@@ -45,7 +45,7 @@ public class LabelValuesRequest implements BaudMessage {
             packer.packString("timeout");
             packer.packString(timeout);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -70,11 +70,11 @@ public class LabelValuesRequest implements BaudMessage {
                 } else if (key.equals("timeout")) {
                     timeout = unPacker.unpackString();
                 } else {
-                    throw new RuntimeException("unexpect key");
+                    throw new MessageCheck.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();

@@ -21,6 +21,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static io.baudtime.message.MessageCheck.checkLabelName;
+
 public class Series {
     private final List<Label> labels;
     private final List<Point> points;
@@ -73,21 +75,27 @@ public class Series {
             if (metricNameBuilder == null) {
                 metricNameBuilder = Label.newBuilder();
             }
+            checkLabelName(name);
             metricNameBuilder.setName(__metricName__).setValue(name);
             return this;
         }
 
         @Deprecated
         public Builder setName(String name) {
+            checkLabelName(name);
             return setMetricName(name);
         }
 
         public Builder addLabel(String name, String value) {
+            checkLabelName(name);
             labels.add(new Label(name, value));
             return this;
         }
 
         public Builder addLabels(List<Label> labels) {
+            for (Label lb : labels) {
+                checkLabelName(lb.getName());
+            }
             this.labels.addAll(labels);
             return this;
         }

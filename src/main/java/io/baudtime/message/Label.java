@@ -19,6 +19,8 @@ import io.baudtime.util.Assert;
 
 import java.util.Comparator;
 
+import static io.baudtime.message.MessageCheck.checkLabelName;
+
 public class Label {
     private final String name;
     private final String value;
@@ -45,6 +47,7 @@ public class Label {
         private String value;
 
         public Builder setName(String name) {
+            checkLabelName(name);
             this.name = name;
             return this;
         }
@@ -65,7 +68,12 @@ public class Label {
     public static final Comparator<Label> comparator = new Comparator<Label>() {
         @Override
         public int compare(Label l1, Label l2) {
-            return l1.getName().compareTo(l2.getName());
+            int d = l1.getName().compareTo(l2.getName());
+            if (d != 0) {
+                return d;
+            }
+
+            return l1.getValue().compareTo(l2.getValue());
         }
     };
 }

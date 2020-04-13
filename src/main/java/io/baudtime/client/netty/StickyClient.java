@@ -127,7 +127,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
                 while (reqBuilder.size() < batchSize) {
                     try {
-                        Series s = this.queue.poll(2, TimeUnit.MILLISECONDS);
+                        Series s = this.queue.poll(5, TimeUnit.MILLISECONDS);
                         if (s != null) {
                             reqBuilder.addSeries(s);
                         } else {
@@ -213,6 +213,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             try {
                 ch = getChannel(addr);
             } catch (Exception e) {
+                serviceAddrProvider.serviceDown(addr);
                 log.error("failed to switch to " + addr, e);
             }
 

@@ -139,7 +139,14 @@ public class RoundRobinClient implements TcpClient {
             throw new RuntimeException("no server was found");
         }
 
-        Channel ch = getChannel(addr);
+        Channel ch;
+        try {
+            ch = getChannel(addr);
+        } catch (RuntimeException e) {
+            serviceAddrProvider.serviceDown(addr);
+            throw e;
+        }
+
         Message tcpMsg = new Message(opaque.getAndIncrement(), request);
 
         Future f = new Future(tcpMsg);
@@ -163,7 +170,14 @@ public class RoundRobinClient implements TcpClient {
             throw new RuntimeException("no server was found");
         }
 
-        Channel ch = getChannel(addr);
+        Channel ch;
+        try {
+            ch = getChannel(addr);
+        } catch (RuntimeException e) {
+            serviceAddrProvider.serviceDown(addr);
+            throw e;
+        }
+
         try {
             AddRequest.Builder reqBuilder = AddRequest.newBuilder();
             reqBuilder.addSeries(series);

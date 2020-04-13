@@ -64,7 +64,7 @@ public class SeriesLabelsResponse implements BaudMessage {
             packer.packString("errorMsg");
             packer.packString(errorMsg);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -103,11 +103,11 @@ public class SeriesLabelsResponse implements BaudMessage {
                 } else if (key.equals("errorMsg")) {
                     errorMsg = unPacker.unpackString();
                 } else {
-                    throw new RuntimeException("unexpect key");
+                    throw new MessageCheck.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();

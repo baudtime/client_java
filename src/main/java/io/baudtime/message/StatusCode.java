@@ -35,6 +35,6 @@ public enum StatusCode {
         if (b == StatusCode.Failed.value) {
             return StatusCode.Failed;
         }
-        throw new RuntimeException("bad type");
+        throw new MessageCheck.UnmarshalException("bad status code type");
     }
 }

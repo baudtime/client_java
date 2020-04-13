@@ -57,7 +57,7 @@ public class AddRequest implements BaudMessage {
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -104,7 +104,7 @@ public class AddRequest implements BaudMessage {
             }
 
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new MessageCheck.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();
