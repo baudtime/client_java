@@ -16,6 +16,7 @@
 package io.baudtime.client.netty;
 
 import io.baudtime.client.ClientConfig;
+import io.baudtime.discovery.ServiceAddrObserver;
 import io.baudtime.discovery.ServiceAddrProvider;
 import io.baudtime.message.AddRequest;
 import io.baudtime.message.Label;
@@ -34,6 +35,7 @@ import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public class StickyClient extends RoundRobinClient implements TcpClient {
@@ -53,6 +55,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             Worker worker = new Worker(stickyConfig.getBatchSize(), stickyConfig.getQueueCapacity());
             workers.add(worker);
             workerThreads.submit(worker);
+            serviceAddrProvider.addObserver(worker);
         }
     }
 
@@ -101,7 +104,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         return workers.get(idx);
     }
 
-    private class Worker implements Runnable {
+    private class Worker implements Runnable, ServiceAddrObserver {
         private final Logger log = LoggerFactory.getLogger(this.getClass());
         private long backOff = 1;
 
@@ -110,6 +113,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
         private Channel ch;
         private String addr;
+        private AtomicBoolean shouldUpdate = new AtomicBoolean(false);
 
         private final FlowControlBarrier barrier;
         private volatile boolean running = true;
@@ -139,7 +143,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                 }
 
                 try {
-                    if (ch == null || !ch.isActive()) {
+                    if (ch == null || !ch.isActive() || shouldUpdate.compareAndSet(true, false)) {
                         updateChannel();
                     }
 
@@ -247,6 +251,21 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             this.addr = addr;
 
             log.info("switched to {}", addr);
+        }
+
+        @Override
+        public void addrChanged() {
+            shouldUpdate.set(true);
+        }
+
+        @Override
+        public void addrDown(String addr) {
+
+        }
+
+        @Override
+        public void addrRecover(String addr) {
+            shouldUpdate.set(true);
         }
     }
 

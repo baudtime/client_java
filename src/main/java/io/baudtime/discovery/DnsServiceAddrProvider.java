@@ -41,7 +41,7 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
         } catch (TextParseException e) {
             throw new RuntimeException(e);
         }
-        
+
         this.servicePort = servicePort;
 
         ArrayList<String> addrs = new ArrayList<String>();
@@ -88,6 +88,10 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
                     DnsServiceAddrProvider.this.healthyAddrs = dummyAddrs;
                     hostsFingerprint = newHostsFingerprint;
                     l.unlock();
+
+                    for (ServiceAddrObserver o : observers) {
+                        o.addrChanged();
+                    }
                 }
 
             }

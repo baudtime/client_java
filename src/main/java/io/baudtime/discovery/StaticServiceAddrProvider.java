@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +42,8 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
     protected final ScheduledExecutorService watcher = Executors.newSingleThreadScheduledExecutor();
     protected long checkInterval;
     protected TimeUnit checkTimeUnit;
+
+    protected List<ServiceAddrObserver> observers = new CopyOnWriteArrayList<ServiceAddrObserver>();
 
     //an addr is like "192.168.0.1:8087"
     public StaticServiceAddrProvider(String... addrs) {
@@ -110,9 +113,12 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         } finally {
             l.unlock();
         }
+
+        for (ServiceAddrObserver o : observers) {
+            o.addrDown(addr);
+        }
     }
 
-    @Override
     public void serviceRecover(String addr) {
         log.info("service {} recover", addr);
         ReentrantReadWriteLock.WriteLock l = addrsLock.writeLock();
@@ -126,6 +132,10 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
             Collections.shuffle(healthyAddrs);
         } finally {
             l.unlock();
+        }
+
+        for (ServiceAddrObserver o : observers) {
+            o.addrRecover(addr);
         }
     }
 
@@ -164,6 +174,11 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         for (String addr : toRecover) {
             serviceRecover(addr);
         }
+    }
+
+    @Override
+    public void addObserver(ServiceAddrObserver observer) {
+        observers.add(observer);
     }
 
     private boolean ping(String addr) {

@@ -15,14 +15,10 @@
 
 package io.baudtime.discovery;
 
-public interface ServiceAddrProvider {
-    String getServiceAddr();
+public interface ServiceAddrObserver {
+    void addrChanged();
 
-    void serviceDown(String addr);
+    void addrDown(String addr);
 
-    void addObserver(ServiceAddrObserver observer);
-
-    void watch();
-
-    void stopWatch();
+    void addrRecover(String addr);
 }
