@@ -20,6 +20,7 @@ import io.baudtime.discovery.ServiceAddrProvider;
 import io.baudtime.message.AddRequest;
 import io.baudtime.message.BaudMessage;
 import io.baudtime.message.Series;
+import io.baudtime.util.ConcurrentReferenceHashMap;
 import io.baudtime.util.Util;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
@@ -37,6 +38,7 @@ import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.handler.traffic.GlobalTrafficShapingHandler;
 
 import java.util.Collection;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +53,8 @@ public class RoundRobinClient implements TcpClient {
 
     private final EventLoopGroup eventLoopGroup;
     private final ChannelPoolMap<String /* addr */, FixedChannelPool> poolMap;
+
+    private final ConcurrentMap<ChannelId, FlowControlBarrier> barriers = new ConcurrentReferenceHashMap<ChannelId, FlowControlBarrier>();
 
     public RoundRobinClient(final ClientConfig clientConfig, ServiceAddrProvider serviceAddrProvider, final FutureListener writeResponseHook) {
         this.clientConfig = clientConfig;
@@ -103,6 +107,9 @@ public class RoundRobinClient implements TcpClient {
                 return new FixedChannelPool(bootstrap, new AbstractChannelPoolHandler() {
                     @Override
                     public void channelCreated(Channel ch) {
+                        final FlowControlBarrier barrier = new FlowControlBarrier();
+                        barriers.putIfAbsent(ch.id(), barrier);
+
                         ChannelPipeline pipeline = ch.pipeline();
 
                         pipeline.addLast(
@@ -123,6 +130,25 @@ public class RoundRobinClient implements TcpClient {
                         if (!clientConfig.isFlushChannelOnEachWrite()) {
                             pipeline.addLast(new FlushConsolidationHandler(256, true));
                         }
+
+                        pipeline.addLast(new ChannelInboundHandlerAdapter() {
+                            @Override
+                            public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+                                if (ctx.channel().isWritable()) {
+                                    barrier.open();
+                                } else {
+                                    barrier.close();
+                                }
+                                ctx.fireChannelWritabilityChanged();
+                            }
+
+                            @Override
+                            public void channelUnregistered(ChannelHandlerContext ctx) {
+                                barriers.remove(ctx.channel().id());
+                                ctx.fireChannelUnregistered();
+                            }
+                        });
+                        barrier.open();
                     }
                 }, clientConfig.getMaxConnectionsOnEachServer());
             }
@@ -146,6 +172,8 @@ public class RoundRobinClient implements TcpClient {
             serviceAddrProvider.serviceDown(addr);
             throw e;
         }
+
+        ensureWritable(ch);
 
         Message tcpMsg = new Message(opaque.getAndIncrement(), request);
 
@@ -177,6 +205,8 @@ public class RoundRobinClient implements TcpClient {
             serviceAddrProvider.serviceDown(addr);
             throw e;
         }
+
+        ensureWritable(ch);
 
         try {
             AddRequest.Builder reqBuilder = AddRequest.newBuilder();
@@ -224,6 +254,20 @@ public class RoundRobinClient implements TcpClient {
         FixedChannelPool pool = poolMap.get(addr);
         if (pool != null) {
             pool.release(channel);
+        }
+    }
+
+    protected void ensureWritable(Channel channel) {
+        if (channel == null) {
+            return;
+        }
+        FlowControlBarrier barrier = barriers.get(channel.id());
+        if (barrier != null) {
+            try {
+                barrier.await();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("flow control barrier is interrupted", e);
+            }
         }
     }
 }

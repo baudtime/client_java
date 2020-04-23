@@ -24,8 +24,6 @@ import io.baudtime.message.Series;
 import io.baudtime.util.BaudtimeThreadFactory;
 import io.baudtime.util.Util;
 import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import net.openhft.hashing.LongHashFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +34,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
 public class StickyClient extends RoundRobinClient implements TcpClient {
 
@@ -115,13 +112,11 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         private String addr;
         private AtomicBoolean shouldUpdate = new AtomicBoolean(false);
 
-        private final FlowControlBarrier barrier;
         private volatile boolean running = true;
 
         private Worker(int batchSize, int queueCapacity) {
             this.queue = new ArrayBlockingQueue<Series>(queueCapacity);
             this.batchSize = batchSize;
-            this.barrier = new FlowControlBarrier();
         }
 
         @Override
@@ -131,7 +126,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
                 while (reqBuilder.size() < batchSize) {
                     try {
-                        Series s = this.queue.poll(5, TimeUnit.MILLISECONDS);
+                        Series s = this.queue.poll(3, TimeUnit.MILLISECONDS);
                         if (s != null) {
                             reqBuilder.addSeries(s);
                         } else {
@@ -148,7 +143,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                     }
 
                     if (ch != null && ch.isActive() && reqBuilder.size() > 0) {
-                        barrier.await();
+                        ensureWritable(ch);
 
                         Message tcpMsg = new Message(opaque.getAndIncrement(), reqBuilder.build());
 
@@ -228,25 +223,6 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                 backOff = 1;
             }
 
-            ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
-                @Override
-                public void channelWritabilityChanged(ChannelHandlerContext ctx) {
-                    if (ctx.channel().isWritable()) {
-                        barrier.open();
-                    } else {
-                        barrier.close();
-                    }
-                    ctx.fireChannelWritabilityChanged();
-                }
-
-                @Override
-                public void channelInactive(ChannelHandlerContext ctx) {
-                    barrier.open();
-                    ctx.fireChannelInactive();
-                }
-            });
-            barrier.open();
-
             this.ch = ch;
             this.addr = addr;
 
@@ -266,56 +242,6 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         @Override
         public void addrRecover(String addr) {
             shouldUpdate.set(true);
-        }
-    }
-
-    private static class FlowControlBarrier {
-        private final Sync sync = new Sync();
-
-        private static final class Sync extends AbstractQueuedSynchronizer {
-
-            private Sync() {
-                setState(1);
-            }
-
-            protected int tryAcquireShared(int acquires) {
-                assert acquires == 1;
-                return (getState() == 0) ? 1 : -1;
-            }
-
-            protected boolean tryReleaseShared(int releases) {
-                assert releases == 1;
-
-                while (true) {
-                    int c = getState();
-                    if (c == 0)
-                        return false;
-                    int nextc = c - 1;
-                    if (compareAndSetState(c, nextc)) {
-                        return nextc == 0;
-                    }
-                }
-            }
-
-            protected void reset() {
-                setState(1);
-            }
-        }
-
-        public void await() throws InterruptedException {
-            sync.acquireSharedInterruptibly(1);
-        }
-
-        public boolean await(long timeout, TimeUnit unit) throws InterruptedException {
-            return sync.tryAcquireSharedNanos(1, unit.toNanos(timeout));
-        }
-
-        public void open() {
-            sync.releaseShared(1);
-        }
-
-        public void close() {
-            sync.reset();
         }
     }
 

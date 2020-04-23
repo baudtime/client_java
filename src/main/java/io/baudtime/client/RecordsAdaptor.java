@@ -39,7 +39,6 @@ public class RecordsAdaptor<Raw extends Client, Records> implements Client {
     private final RecordsConverter<Records> recordsConverter;
 
     private ExecutorService senders = Executors.newCachedThreadPool(new BaudtimeThreadFactory("senders"));
-    private static int senderNumPerQueue = 8;
 
     private List<WeakReference<BlockingQueue<Future<Collection<Series>>>>> reusefulQs = new ArrayList<WeakReference<BlockingQueue<Future<Collection<Series>>>>>(3);
     private static int reusefulQNum = 3;
@@ -49,11 +48,10 @@ public class RecordsAdaptor<Raw extends Client, Records> implements Client {
 
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
-    private RecordsAdaptor(final Raw client, RecordsConverter<Records> recordsConverter) {
-        int availableProcessors = Runtime.getRuntime().availableProcessors();
-        this.convertExecutor = new ThreadPoolExecutor(availableProcessors / 2, availableProcessors,
+    private RecordsAdaptor(final Raw client, RecordsConverter<Records> recordsConverter, int maxConverterNum) {
+        this.convertExecutor = new ThreadPoolExecutor(maxConverterNum / 2, maxConverterNum,
                 10000L, TimeUnit.MILLISECONDS,
-                new ArrayBlockingQueue<Runnable>(availableProcessors), new BaudtimeThreadFactory("recordProcessPre"),
+                new ArrayBlockingQueue<Runnable>(maxConverterNum), new BaudtimeThreadFactory("recordProcessPre"),
                 new RejectedExecutionHandler() {
                     @Override
                     public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
@@ -69,12 +67,11 @@ public class RecordsAdaptor<Raw extends Client, Records> implements Client {
     }
 
     public static <Raw extends Client, Records> RecordsAdaptor<Raw, Records> wrap(Raw client, RecordsConverter<Records> recordsConverter) {
-        return new RecordsAdaptor<Raw, Records>(client, recordsConverter);
+        return new RecordsAdaptor<Raw, Records>(client, recordsConverter, Runtime.getRuntime().availableProcessors());
     }
 
-    public static <Raw extends Client, Records> RecordsAdaptor<Raw, Records> wrap(Raw client, RecordsConverter<Records> recordsConverter, int senderNumPerQueue) {
-        RecordsAdaptor.senderNumPerQueue = senderNumPerQueue;
-        return new RecordsAdaptor<Raw, Records>(client, recordsConverter);
+    public static <Raw extends Client, Records> RecordsAdaptor<Raw, Records> wrap(Raw client, RecordsConverter<Records> recordsConverter, int maxConverterNum) {
+        return new RecordsAdaptor<Raw, Records>(client, recordsConverter, maxConverterNum);
     }
 
     @Override
@@ -196,9 +193,7 @@ public class RecordsAdaptor<Raw extends Client, Records> implements Client {
             }
         };
 
-        for (int i = 0; i < senderNumPerQueue; i++) {
-            senders.execute(t);
-        }
+        senders.execute(t);
 
         reusefulQs.add(qRef);
 
