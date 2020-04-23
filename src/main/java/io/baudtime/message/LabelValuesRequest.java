@@ -16,16 +16,19 @@
 package io.baudtime.message;
 
 import io.baudtime.util.Assert;
+import io.baudtime.util.Util;
 import org.msgpack.core.MessageBufferPacker;
 import org.msgpack.core.MessagePack;
 import org.msgpack.core.MessageUnpacker;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Date;
 
 public class LabelValuesRequest implements BaudMessage {
     private String name;
-    private String constraint;
+    private String start;
+    private String end;
     private String timeout;
 
     private LabelValuesRequest() {
@@ -34,13 +37,16 @@ public class LabelValuesRequest implements BaudMessage {
     public byte[] marshal() {
         MessageBufferPacker packer = MessagePack.newDefaultBufferPacker();
         try {
-            packer.packMapHeader(3);
+            packer.packMapHeader(4);
 
             packer.packString("name");
             packer.packString(name);
 
-            packer.packString("constraint");
-            packer.packString(constraint);
+            packer.packString("start");
+            packer.packString(start);
+
+            packer.packString("end");
+            packer.packString(end);
 
             packer.packString("timeout");
             packer.packString(timeout);
@@ -65,8 +71,10 @@ public class LabelValuesRequest implements BaudMessage {
                 String key = unPacker.unpackString();
                 if (key.equals("name")) {
                     name = unPacker.unpackString();
-                } else if (key.equals("constraint")) {
-                    constraint = unPacker.unpackString();
+                } else if (key.equals("start")) {
+                    start = unPacker.unpackString();
+                } else if (key.equals("end")) {
+                    end = unPacker.unpackString();
                 } else if (key.equals("timeout")) {
                     timeout = unPacker.unpackString();
                 } else {
@@ -90,7 +98,8 @@ public class LabelValuesRequest implements BaudMessage {
 
     public static class Builder {
         private String name;
-        private String constraint;
+        private String start;
+        private String end;
         private String timeout;
 
         public Builder setName(String name) {
@@ -98,8 +107,13 @@ public class LabelValuesRequest implements BaudMessage {
             return this;
         }
 
-        public Builder setConstraint(String constraint) {
-            this.constraint = constraint;
+        public Builder setStart(Date start) {
+            this.start = (start == null ? "" : Util.Formatter.format(start));
+            return this;
+        }
+
+        public Builder setEnd(Date end) {
+            this.end = (end == null ? "" : Util.Formatter.format(end));
             return this;
         }
 
@@ -114,7 +128,8 @@ public class LabelValuesRequest implements BaudMessage {
 
             LabelValuesRequest r = new LabelValuesRequest();
             r.name = this.name;
-            r.constraint = this.constraint == null ? "" : this.constraint;
+            r.start = this.start;
+            r.end = this.end;
             r.timeout = this.timeout;
             return r;
         }

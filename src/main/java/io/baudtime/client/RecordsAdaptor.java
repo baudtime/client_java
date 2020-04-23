@@ -90,8 +90,8 @@ public class RecordsAdaptor<Raw extends Client, Records> implements Client {
     }
 
     @Override
-    public LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit) {
-        return client.labelValues(name, constraint, timeout, unit);
+    public LabelValuesResponse labelValues(String name, Date start, Date end, long timeout, TimeUnit unit) {
+        return client.labelValues(name, start, end, timeout, unit);
     }
 
     @Override

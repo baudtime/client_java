@@ -30,9 +30,9 @@ public class Batch {
                     }
                 }).stickyWorkerNum(2).stickyBatchSize(512).stickyQueueCapacity(1024).build();
 
-        RecordsAdaptor<MultiEndpointClient, HashMap<Long, Series>> wrapped = RecordsAdaptor.wrap(cli, new RecordsAdaptor.RecordsConverter<HashMap<Long, Series>>() {
+        RecordsAdaptor<MultiEndpointClient, HashMap<Integer, Series>> wrapped = RecordsAdaptor.wrap(cli, new RecordsAdaptor.RecordsConverter<HashMap<Integer, Series>>() {
             @Override
-            public Collection<Series> convert(HashMap<Long, Series> series) {
+            public Collection<Series> convert(HashMap<Integer, Series> series) {
                 return series.values();
             }
         });
@@ -52,7 +52,7 @@ public class Batch {
             Point.Builder pb = sb1.addPointBuilder();
 
             while (true) {
-                HashMap<Long, Series> m = new HashMap<Long, Series>();
+                HashMap<Integer, Series> m = new HashMap<Integer, Series>();
 
                 long t = System.currentTimeMillis();
                 while (t <= lastT) {
@@ -64,7 +64,7 @@ public class Batch {
                     lb.setName("state").setValue(String.valueOf(i));
                     pb.setT(t - i).setV(i);
 
-                    m.put(t, sb1.build());
+                    m.put(i, sb1.build());
                 }
 
                 try {
