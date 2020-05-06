@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 public class MessageCheck {
 
     private static final Pattern labelNameRE = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    private static final ThreadLocal<Matcher> matchers = new ThreadLocal<Matcher>();
     private static final String labelNameREMsg = "label name must match ^[a-zA-Z_][a-zA-Z0-9_]*$";
 
     public static class BuildException extends RuntimeException {
@@ -53,7 +54,14 @@ public class MessageCheck {
     }
 
     public static void checkLabelName(String name) {
-        Matcher m = labelNameRE.matcher(name);
+        Matcher m = matchers.get();
+        if (m == null) {
+            m = labelNameRE.matcher(name);
+            matchers.set(m);
+        } else {
+            m.reset(name);
+        }
+
         if (!m.matches()) {
             throw new MessageCheck.BuildException(labelNameREMsg);
         }

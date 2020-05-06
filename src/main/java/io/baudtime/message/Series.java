@@ -16,6 +16,7 @@
 package io.baudtime.message;
 
 import io.baudtime.util.Assert;
+import net.openhft.hashing.LongHashFunction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,12 +28,21 @@ public class Series {
     private final List<Label> labels;
     private final List<Point> points;
 
+    private final int hashcode;
+
     public Series(List<Label> labels, List<Point> points) {
         Collections.sort(labels, Label.comparator);
         Collections.sort(points, Point.comparator);
 
         this.labels = labels;
         this.points = points;
+
+        StringBuilder sb = new StringBuilder();
+        for (Label lb : labels) {
+            sb.append(lb.getName());
+            sb.append(lb.getValue());
+        }
+        this.hashcode = (int) (LongHashFunction.xx().hashChars(sb));
     }
 
     public List<Label> getLabels() {
@@ -41,6 +51,10 @@ public class Series {
 
     public List<Point> getPoints() {
         return Collections.unmodifiableList(points);
+    }
+
+    public int hash() {
+        return hashcode;
     }
 
     public String toString() {
@@ -147,7 +161,7 @@ public class Series {
                 ps.add(pb.build());
             }
 
-            Assert.isPositive(ps.size(), "series has no points");
+            Assert.isPositive(ps.size());
 
             return new Series(ls, ps);
         }

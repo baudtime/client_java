@@ -27,10 +27,7 @@ import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.pool.AbstractChannelPoolHandler;
-import io.netty.channel.pool.AbstractChannelPoolMap;
-import io.netty.channel.pool.ChannelPoolMap;
-import io.netty.channel.pool.FixedChannelPool;
+import io.netty.channel.pool.*;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.flush.FlushConsolidationHandler;
 import io.netty.handler.timeout.IdleStateEvent;
@@ -85,6 +82,54 @@ public class RoundRobinClient implements TcpClient {
             trafficShapingHandler.setMaxGlobalWriteSize(clientConfig.getWriteFlowControlLimit() + clientConfig.getWriteFlowControlLimit() / 10);
         }
 
+        final ChannelPoolHandler channelPoolHandler = new AbstractChannelPoolHandler() {
+            @Override
+            public void channelCreated(Channel ch) {
+                final FlowControlBarrier barrier = new FlowControlBarrier();
+                barriers.putIfAbsent(ch.id(), barrier);
+
+                ChannelPipeline pipeline = ch.pipeline();
+
+                pipeline.addLast(
+                        new ResponseDecoder(clientConfig.getMaxResponseFrameLength()),
+                        new RequestEncoder(),
+                        new IdleStateHandler(0, 0, clientConfig.getChannelMaxIdleTimeSeconds()) {
+                            @Override
+                            protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) {
+                                ctx.close();
+                            }
+                        },
+                        responseHandler);
+
+                if (trafficShapingHandler != null) {
+                    pipeline.addLast(trafficShapingHandler);
+                }
+
+                if (!clientConfig.isFlushChannelOnEachWrite()) {
+                    pipeline.addLast(new FlushConsolidationHandler(256, true));
+                }
+
+                pipeline.addLast(new ChannelInboundHandlerAdapter() {
+                    @Override
+                    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+                        if (ctx.channel().isWritable()) {
+                            barrier.open();
+                        } else {
+                            barrier.close();
+                        }
+                        ctx.fireChannelWritabilityChanged();
+                    }
+
+                    @Override
+                    public void channelUnregistered(ChannelHandlerContext ctx) {
+                        barriers.remove(ctx.channel().id());
+                        ctx.fireChannelUnregistered();
+                    }
+                });
+                barrier.open();
+            }
+        };
+
         this.poolMap = new AbstractChannelPoolMap<String, FixedChannelPool>() {
             @Override
             protected FixedChannelPool newPool(String key) {
@@ -104,53 +149,9 @@ public class RoundRobinClient implements TcpClient {
                         .option(ChannelOption.WRITE_BUFFER_WATER_MARK, new WriteBufferWaterMark(clientConfig.getWriteBufLowWaterMark(), clientConfig.getWriteBufHighWaterMark()))
                         .remoteAddress(s[0], Integer.parseInt(s[1]));
 
-                return new FixedChannelPool(bootstrap, new AbstractChannelPoolHandler() {
-                    @Override
-                    public void channelCreated(Channel ch) {
-                        final FlowControlBarrier barrier = new FlowControlBarrier();
-                        barriers.putIfAbsent(ch.id(), barrier);
-
-                        ChannelPipeline pipeline = ch.pipeline();
-
-                        pipeline.addLast(
-                                new ResponseDecoder(clientConfig.getMaxResponseFrameLength()),
-                                new RequestEncoder(),
-                                new IdleStateHandler(0, 0, clientConfig.getChannelMaxIdleTimeSeconds()) {
-                                    @Override
-                                    protected void channelIdle(ChannelHandlerContext ctx, IdleStateEvent evt) {
-                                        ctx.close();
-                                    }
-                                },
-                                responseHandler);
-
-                        if (trafficShapingHandler != null) {
-                            pipeline.addLast(trafficShapingHandler);
-                        }
-
-                        if (!clientConfig.isFlushChannelOnEachWrite()) {
-                            pipeline.addLast(new FlushConsolidationHandler(256, true));
-                        }
-
-                        pipeline.addLast(new ChannelInboundHandlerAdapter() {
-                            @Override
-                            public void channelWritabilityChanged(ChannelHandlerContext ctx) {
-                                if (ctx.channel().isWritable()) {
-                                    barrier.open();
-                                } else {
-                                    barrier.close();
-                                }
-                                ctx.fireChannelWritabilityChanged();
-                            }
-
-                            @Override
-                            public void channelUnregistered(ChannelHandlerContext ctx) {
-                                barriers.remove(ctx.channel().id());
-                                ctx.fireChannelUnregistered();
-                            }
-                        });
-                        barrier.open();
-                    }
-                }, clientConfig.getMaxConnectionsOnEachServer());
+                return new FixedChannelPool(bootstrap, channelPoolHandler, ChannelHealthChecker.ACTIVE,
+                        FixedChannelPool.AcquireTimeoutAction.FAIL, clientConfig.getConnectTimeoutMillis(),
+                        clientConfig.getMaxConnectionsOnEachServer(), clientConfig.getMaxConnectionsOnEachServer());
             }
         };
 
@@ -241,19 +242,19 @@ public class RoundRobinClient implements TcpClient {
         FixedChannelPool pool = poolMap.get(addr);
         if (pool != null) {
             try {
-                io.netty.util.concurrent.Future<Channel> future = pool.acquire();
-                return future.get(2 * clientConfig.getConnectTimeoutMillis(), TimeUnit.MILLISECONDS);
+                return pool.acquire().get();
             } catch (Exception e) {
-                throw new RuntimeException("can't connect to " + addr, e);
+                String msg = String.format("can't fetch a conn from pool, addr:%s, thread:%d", addr, Thread.currentThread().getId());
+                throw new RuntimeException(msg, e);
             }
         }
-        throw new RuntimeException("can't build connection pool for " + addr);
+        throw new RuntimeException("can't build conn pool for " + addr);
     }
 
     protected void putChannel(String addr, Channel channel) {
         FixedChannelPool pool = poolMap.get(addr);
         if (pool != null) {
-            pool.release(channel);
+            pool.release(channel).awaitUninterruptibly();
         }
     }
 

@@ -69,6 +69,16 @@ public class Assert {
         }
     }
 
+    public static void isNotNegative(double n) {
+        isNotNegative(n, null);
+    }
+
+    public static void isNotNegative(double n, String message) {
+        if (n < 0) {
+            throw new AssertException(message);
+        }
+    }
+
     public static void isPositive(double n) {
         isPositive(n, null);
     }

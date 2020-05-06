@@ -74,9 +74,9 @@ public class MultiEndpointClient implements Client {
     }
 
     @Override
-    public LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit) {
+    public LabelValuesResponse labelValues(String name, Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit) {
         checkCurrentSelect();
-        return current.labelValues(name, constraint, timeout, unit);
+        return current.labelValues(name, matches, start, end, timeout, unit);
     }
 
     @Override
@@ -103,8 +103,8 @@ public class MultiEndpointClient implements Client {
         return getClient(endpoint).seriesLabels(matches, start, end, timeout, unit);
     }
 
-    public LabelValuesResponse labelValues(String endpoint, String name, String constraint, long timeout, TimeUnit unit) {
-        return getClient(endpoint).labelValues(name, constraint, timeout, unit);
+    public LabelValuesResponse labelValues(String endpoint, String name, Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit) {
+        return getClient(endpoint).labelValues(name, matches, start, end, timeout, unit);
     }
 
     public void write(String endpoint, Series... series) {

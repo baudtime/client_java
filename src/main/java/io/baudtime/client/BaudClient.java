@@ -98,7 +98,7 @@ public class BaudClient implements Client {
     }
 
     @Override
-    public LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit) {
+    public LabelValuesResponse labelValues(String name, Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit) {
         if (name == null) {
             throw new RuntimeException("label name must be provided");
         }
@@ -106,10 +106,7 @@ public class BaudClient implements Client {
         String timeoutSec = String.valueOf(unit.toSeconds(timeout));
 
         LabelValuesRequest.Builder reqBuilder = LabelValuesRequest.newBuilder();
-        reqBuilder.setName(name).setTimeout(timeoutSec);
-        if (constraint != null) {
-            reqBuilder.setConstraint(constraint);
-        }
+        reqBuilder.setName(name).setMatches(matches).setStart(start).setEnd(end).setTimeout(timeoutSec);
 
         return (LabelValuesResponse) tcpClient.query(reqBuilder.build(), timeout, unit);
     }

@@ -31,7 +31,7 @@ public interface Client {
 
     SeriesLabelsResponse seriesLabels(Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit);
 
-    LabelValuesResponse labelValues(String name, String constraint, long timeout, TimeUnit unit);
+    LabelValuesResponse labelValues(String name, Collection<String> matches, Date start, Date end, long timeout, TimeUnit unit);
 
     void write(Series... series);
 

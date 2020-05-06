@@ -111,7 +111,6 @@ public class SeriesLabelsRequest implements BaudMessage {
         private String end;
         private String timeout;
 
-
         public Builder setStart(Date start) {
             this.start = Util.Formatter.format(start);
             return this;

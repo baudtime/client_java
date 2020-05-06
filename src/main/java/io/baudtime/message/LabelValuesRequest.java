@@ -16,16 +16,22 @@
 package io.baudtime.message;
 
 import io.baudtime.util.Assert;
+import io.baudtime.util.Util;
 import org.msgpack.core.MessageBufferPacker;
 import org.msgpack.core.MessagePack;
 import org.msgpack.core.MessageUnpacker;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Date;
 
 public class LabelValuesRequest implements BaudMessage {
     private String name;
-    private String constraint;
+    private Collection<String> matches;
+    private String start;
+    private String end;
     private String timeout;
 
     private LabelValuesRequest() {
@@ -34,13 +40,22 @@ public class LabelValuesRequest implements BaudMessage {
     public byte[] marshal() {
         MessageBufferPacker packer = MessagePack.newDefaultBufferPacker();
         try {
-            packer.packMapHeader(3);
+            packer.packMapHeader(4);
 
             packer.packString("name");
             packer.packString(name);
 
-            packer.packString("constraint");
-            packer.packString(constraint);
+            packer.packString("matches");
+            packer.packArrayHeader(matches.size());
+            for (String match : matches) {
+                packer.packString(match);
+            }
+
+            packer.packString("start");
+            packer.packString(start);
+
+            packer.packString("end");
+            packer.packString(end);
 
             packer.packString("timeout");
             packer.packString(timeout);
@@ -65,10 +80,18 @@ public class LabelValuesRequest implements BaudMessage {
                 String key = unPacker.unpackString();
                 if (key.equals("name")) {
                     name = unPacker.unpackString();
-                } else if (key.equals("constraint")) {
-                    constraint = unPacker.unpackString();
+                } else if (key.equals("start")) {
+                    start = unPacker.unpackString();
+                } else if (key.equals("end")) {
+                    end = unPacker.unpackString();
                 } else if (key.equals("timeout")) {
                     timeout = unPacker.unpackString();
+                } else if (key.equals("matches")) {
+                    int sz = unPacker.unpackArrayHeader();
+                    matches = new ArrayList<String>(sz);
+                    for (int j = 0; j < sz; j++) {
+                        matches.add(unPacker.unpackString());
+                    }
                 } else {
                     throw new MessageCheck.UnmarshalException("unexpect key");
                 }
@@ -90,7 +113,9 @@ public class LabelValuesRequest implements BaudMessage {
 
     public static class Builder {
         private String name;
-        private String constraint;
+        private Collection<String> matches;
+        private String start;
+        private String end;
         private String timeout;
 
         public Builder setName(String name) {
@@ -98,8 +123,18 @@ public class LabelValuesRequest implements BaudMessage {
             return this;
         }
 
-        public Builder setConstraint(String constraint) {
-            this.constraint = constraint;
+        public Builder setMatches(Collection<String> matches) {
+            this.matches = matches;
+            return this;
+        }
+
+        public Builder setStart(Date start) {
+            this.start = (start == null ? "" : Util.Formatter.format(start));
+            return this;
+        }
+
+        public Builder setEnd(Date end) {
+            this.end = (end == null ? "" : Util.Formatter.format(end));
             return this;
         }
 
@@ -111,10 +146,13 @@ public class LabelValuesRequest implements BaudMessage {
         public LabelValuesRequest build() {
             Assert.notEmpty(this.name);
             Assert.notEmpty(this.timeout);
+            Assert.isNotNegative(this.matches.size());
 
             LabelValuesRequest r = new LabelValuesRequest();
             r.name = this.name;
-            r.constraint = this.constraint == null ? "" : this.constraint;
+            r.matches = this.matches;
+            r.start = this.start;
+            r.end = this.end;
             r.timeout = this.timeout;
             return r;
         }

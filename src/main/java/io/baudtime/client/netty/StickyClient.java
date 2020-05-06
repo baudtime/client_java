@@ -19,12 +19,10 @@ import io.baudtime.client.ClientConfig;
 import io.baudtime.discovery.ServiceAddrObserver;
 import io.baudtime.discovery.ServiceAddrProvider;
 import io.baudtime.message.AddRequest;
-import io.baudtime.message.Label;
 import io.baudtime.message.Series;
 import io.baudtime.util.BaudtimeThreadFactory;
 import io.baudtime.util.Util;
 import io.netty.channel.Channel;
-import net.openhft.hashing.LongHashFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,10 +69,12 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             }
         }
 
-        for (Series s : tryAgain) {
-            Worker worker = getWorker(s);
-            if (worker != null) {
-                worker.submit(s, true);
+        if (!tryAgain.isEmpty()) {
+            for (Series s : tryAgain) {
+                Worker worker = getWorker(s);
+                if (worker != null) {
+                    worker.submit(s, true);
+                }
             }
         }
     }
@@ -89,15 +89,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
     }
 
     private Worker getWorker(Series series) {
-        StringBuilder sb = new StringBuilder();
-        for (Label lb : series.getLabels()) {
-            sb.append(lb.getName());
-            sb.append(" ");
-            sb.append(lb.getValue());
-            sb.append(" ");
-        }
-
-        int idx = (int) (LongHashFunction.xx().hashChars(sb) & 0x0FFFF) % workers.size();
+        int idx = (series.hash() & 0x0FFFF) % workers.size();
         return workers.get(idx);
     }
 
