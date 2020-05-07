@@ -24,7 +24,7 @@ import java.util.List;
 
 import static io.baudtime.message.MessageCheck.checkLabelName;
 
-public class Series {
+public class Series implements Hashed{
     private final List<Label> labels;
     private final List<Point> points;
 

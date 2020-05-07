@@ -244,7 +244,8 @@ public class RoundRobinClient implements TcpClient {
             try {
                 return pool.acquire().get();
             } catch (Exception e) {
-                String msg = String.format("can't fetch a conn from pool, addr:%s, thread:%d", addr, Thread.currentThread().getId());
+                String msg = String.format("can't fetch a conn from pool, acquired:%d, addr:%s, thread:%d",
+                        pool.acquiredChannelCount(), addr, Thread.currentThread().getId());
                 throw new RuntimeException(msg, e);
             }
         }

@@ -19,6 +19,7 @@ import io.baudtime.client.ClientConfig;
 import io.baudtime.discovery.ServiceAddrObserver;
 import io.baudtime.discovery.ServiceAddrProvider;
 import io.baudtime.message.AddRequest;
+import io.baudtime.message.Hashed;
 import io.baudtime.message.Series;
 import io.baudtime.util.BaudtimeThreadFactory;
 import io.baudtime.util.Util;
@@ -56,10 +57,16 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
     @Override
     public void append(Collection<Series> series) {
+        Worker workerForBatch = null;
+        if (series instanceof Hashed) {
+            workerForBatch = getWorker((Hashed) series);
+        }
+
         List<Series> tryAgain = new LinkedList<Series>();
+        Worker worker;
 
         for (Series s : series) {
-            Worker worker = getWorker(s);
+            worker = (workerForBatch != null ? workerForBatch : getWorker(s));
             if (worker != null) {
                 try {
                     worker.submit(s, false);
@@ -71,7 +78,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
         if (!tryAgain.isEmpty()) {
             for (Series s : tryAgain) {
-                Worker worker = getWorker(s);
+                worker = (workerForBatch != null ? workerForBatch : getWorker(s));
                 if (worker != null) {
                     worker.submit(s, true);
                 }
@@ -88,8 +95,8 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         super.close();
     }
 
-    private Worker getWorker(Series series) {
-        int idx = (series.hash() & 0x0FFFF) % workers.size();
+    private Worker getWorker(Hashed hashed) {
+        int idx = (hashed.hash() & 0x0FFFF) % workers.size();
         return workers.get(idx);
     }
 
