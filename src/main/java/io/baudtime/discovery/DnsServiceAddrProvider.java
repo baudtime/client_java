@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
 
-    private Name domainName;
+    private final Lookup lookup;
     private int servicePort;
     private String hostsFingerprint;
 
@@ -37,7 +37,7 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
 
     public DnsServiceAddrProvider(String domainName, int servicePort, long checkInterval, TimeUnit timeUnit) {
         try {
-            this.domainName = Name.fromString(domainName);
+            lookup = new Lookup(Name.fromString(domainName));
         } catch (TextParseException e) {
             throw new RuntimeException(e);
         }
@@ -45,17 +45,20 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
         this.servicePort = servicePort;
 
         ArrayList<String> addrs = new ArrayList<String>();
-        Record[] records = new Lookup(this.domainName).run();
-        for (Record record : records) {
-            ARecord a = (ARecord) record;
-            InetAddress address = a.getAddress();
-            if (address != null) {
-                addrs.add(address.getHostAddress() + ":" + servicePort);
-            }
-        }
-        Collections.shuffle(addrs);
-        this.healthyAddrs = addrs;
 
+        Record[] records = lookup.run();
+        if (records != null) {
+            for (Record record : records) {
+                ARecord a = (ARecord) record;
+                InetAddress address = a.getAddress();
+                if (address != null) {
+                    addrs.add(address.getHostAddress() + ":" + servicePort);
+                }
+            }
+            Collections.shuffle(addrs);
+        }
+
+        this.healthyAddrs = addrs;
         this.checkInterval = checkInterval;
         this.checkTimeUnit = timeUnit;
     }
@@ -63,37 +66,41 @@ public class DnsServiceAddrProvider extends StaticServiceAddrProvider {
     @Override
     public void watch() {
         super.watch();
-        watcher.scheduleWithFixedDelay(new Runnable() {
 
+        watcher.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 Lookup.getDefaultCache(DClass.IN).clearCache();
+                Record[] records = lookup.run();
 
-                TreeSet<String> hosts = new TreeSet<String>();
-                Record[] records = new Lookup(domainName).run();
-                for (Record record : records) {
-                    ARecord a = (ARecord) record;
-                    InetAddress address = a.getAddress();
-                    if (address != null) {
-                        hosts.add(address.getHostAddress());
+                if (records != null) {
+                    TreeSet<String> hosts = new TreeSet<String>();
+
+                    for (Record record : records) {
+                        ARecord a = (ARecord) record;
+                        InetAddress address = a.getAddress();
+                        if (address != null) {
+                            hosts.add(address.getHostAddress());
+                        }
+                    }
+
+                    ArrayList<String> dummyAddrs = new ArrayList<String>();
+                    String newHostsFingerprint = computeFingerprint(hosts, dummyAddrs);
+                    if (hostsFingerprint == null || !hostsFingerprint.equals(newHostsFingerprint)) {
+                        Collections.shuffle(dummyAddrs);
+
+                        ReentrantReadWriteLock.WriteLock l = DnsServiceAddrProvider.this.addrsLock.writeLock();
+
+                        l.lock();
+                        DnsServiceAddrProvider.this.healthyAddrs = dummyAddrs;
+                        hostsFingerprint = newHostsFingerprint;
+                        l.unlock();
+
+                        for (ServiceAddrObserver o : observers) {
+                            o.addrChanged();
+                        }
                     }
                 }
-
-                ArrayList<String> dummyAddrs = new ArrayList<String>();
-                String newHostsFingerprint = computeFingerprint(hosts, dummyAddrs);
-                if (hostsFingerprint == null || !hostsFingerprint.equals(newHostsFingerprint)) {
-                    ReentrantReadWriteLock.WriteLock l = DnsServiceAddrProvider.this.addrsLock.writeLock();
-
-                    l.lock();
-                    DnsServiceAddrProvider.this.healthyAddrs = dummyAddrs;
-                    hostsFingerprint = newHostsFingerprint;
-                    l.unlock();
-
-                    for (ServiceAddrObserver o : observers) {
-                        o.addrChanged();
-                    }
-                }
-
             }
         }, 0, checkInterval, checkTimeUnit);
     }
