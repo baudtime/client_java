@@ -100,12 +100,10 @@ public class Future implements ChannelFutureListener {
     }
 
     @Override
-    public void operationComplete(ChannelFuture future) throws Exception {
+    public void operationComplete(ChannelFuture future) {
+        future.removeListener(this);
         if (future.isSuccess()) {
             this.setSendRequestOK(true);
-            if (this.countDownLatch.await(15, TimeUnit.MILLISECONDS)) {
-                this.finish();
-            }
         } else {
             this.setSendRequestOK(false).setCause(future.cause()).finish();
         }
