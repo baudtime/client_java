@@ -263,12 +263,19 @@ public class RoundRobinClient implements TcpClient {
         if (channel == null) {
             return;
         }
+
         FlowControlBarrier barrier = barriers.get(channel.id());
         if (barrier != null) {
-            try {
-                barrier.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException("flow control barrier is interrupted", e);
+            while (channel.isActive()) {
+                try {
+                    if (barrier.await(5, TimeUnit.SECONDS)) {
+                        return;
+                    } else {
+                        continue;
+                    }
+                } catch (InterruptedException e) {
+                    throw new RuntimeException("flow control barrier is interrupted", e);
+                }
             }
         }
     }
