@@ -22,14 +22,18 @@ public class MessageCheck {
 
     private static final Pattern labelNameRE = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
     private static final ThreadLocal<Matcher> matchers = new ThreadLocal<Matcher>();
-    private static final String labelNameREMsg = "label name must match ^[a-zA-Z_][a-zA-Z0-9_]*$";
 
-    public static class BuildException extends RuntimeException {
-        public BuildException(String msg) {
-            super(msg);
+    public static class LabelPatternException extends RuntimeException {
+        private static final String labelNameREMsg = "label name must match ^[a-zA-Z_][a-zA-Z0-9_]*$";
+        private String wrongPatternString;
+
+        public LabelPatternException(String wrongPatternString) {
+            super(labelNameREMsg);
+            this.wrongPatternString = wrongPatternString;
         }
 
-        public BuildException() {
+        public String getWrongPatternString() {
+            return wrongPatternString;
         }
     }
 
@@ -63,7 +67,7 @@ public class MessageCheck {
         }
 
         if (!m.matches()) {
-            throw new MessageCheck.BuildException(labelNameREMsg);
+            throw new LabelPatternException(name);
         }
     }
 }
