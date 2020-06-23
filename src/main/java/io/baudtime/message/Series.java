@@ -24,7 +24,7 @@ import java.util.List;
 
 import static io.baudtime.message.MessageCheck.checkLabelName;
 
-public class Series implements Hashed{
+public class Series implements Hashed {
     private final List<Label> labels;
     private final List<Point> points;
 
@@ -161,7 +161,7 @@ public class Series implements Hashed{
                 ps.add(pb.build());
             }
 
-            Assert.isPositive(ps.size());
+            Assert.isPositive(ps.size(), "series has no points");
 
             return new Series(ls, ps);
         }

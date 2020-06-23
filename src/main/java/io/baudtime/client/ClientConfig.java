@@ -228,7 +228,7 @@ public class ClientConfig {
         private static class Builder {
             private int workerNum = Runtime.getRuntime().availableProcessors() / 2;
             private int batchSize = 1024;
-            private int queueCapacity = 2048;
+            private int queueCapacity = 1024;
 
             private Builder stickyWorkerNum(int workerNum) {
                 this.workerNum = workerNum;

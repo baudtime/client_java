@@ -120,32 +120,12 @@ public class AddRequest implements BaudMessage {
 
     public static class Builder {
 
-        private final Map<String, Series.Builder> buf = new HashMap<String, Series.Builder>();
+        private List<Series> toBuild = new LinkedList<Series>();
         private int size;
 
         public Builder addSeries(Series series) {
-            List<Label> lbls = series.getLabels();
-
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < lbls.size(); i++) {
-                if (i > 0) {
-                    sb.append(',');
-                }
-                sb.append(lbls.get(i).getName());
-                sb.append('=');
-                sb.append(lbls.get(i).getValue());
-            }
-            String k = sb.toString();
-
-            Series.Builder builder = buf.get(k);
-            if (builder == null) {
-                builder = Series.newBuilder();
-                builder.addLabels(lbls);
-                buf.put(k, builder);
-            }
-            builder.addPoints(series.getPoints());
-
-            size++;
+            toBuild.add(series);
+            size += series.getPoints().size();
 
             return this;
         }
@@ -163,6 +143,30 @@ public class AddRequest implements BaudMessage {
         }
 
         public AddRequest build() {
+            Map<String, Series.Builder> buf = new HashMap<String, Series.Builder>();
+            for (Series series : toBuild) {
+                List<Label> lbls = series.getLabels();
+
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < lbls.size(); i++) {
+                    if (i > 0) {
+                        sb.append(',');
+                    }
+                    sb.append(lbls.get(i).getName());
+                    sb.append('=');
+                    sb.append(lbls.get(i).getValue());
+                }
+                String k = sb.toString();
+
+                Series.Builder seriesBuilder = buf.get(k);
+                if (seriesBuilder == null) {
+                    seriesBuilder = Series.newBuilder();
+                    seriesBuilder.addLabels(lbls);
+                    buf.put(k, seriesBuilder);
+                }
+                seriesBuilder.addPoints(series.getPoints());
+            }
+
             try {
                 ArrayList<Series> series = new ArrayList<Series>();
 
@@ -175,8 +179,76 @@ public class AddRequest implements BaudMessage {
 
                 return r;
             } finally {
-                buf.clear();
+                clear();
             }
+        }
+
+        public void clear() {
+            toBuild = new LinkedList<Series>();
+            size = 0;
+        }
+    }
+
+    public static class MergedBuilder {
+        private final List<Builder> builders = new LinkedList<Builder>();
+        private int size;
+
+        public MergedBuilder merge(Builder builder) {
+            builders.add(builder);
+            size += builder.size();
+            return this;
+        }
+
+        public int size() {
+            return size;
+        }
+
+        public AddRequest build() {
+            Map<String, Series.Builder> buf = new HashMap<String, Series.Builder>();
+            for (Builder builder : builders) {
+                for (Series series : builder.toBuild) {
+                    List<Label> lbls = series.getLabels();
+
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 0; i < lbls.size(); i++) {
+                        if (i > 0) {
+                            sb.append(',');
+                        }
+                        sb.append(lbls.get(i).getName());
+                        sb.append('=');
+                        sb.append(lbls.get(i).getValue());
+                    }
+                    String k = sb.toString();
+
+                    Series.Builder seriesBuilder = buf.get(k);
+                    if (seriesBuilder == null) {
+                        seriesBuilder = Series.newBuilder();
+                        seriesBuilder.addLabels(lbls);
+                        buf.put(k, seriesBuilder);
+                    }
+                    seriesBuilder.addPoints(series.getPoints());
+                }
+            }
+
+            try {
+                ArrayList<Series> series = new ArrayList<Series>();
+
+                for (Map.Entry<String, Series.Builder> e : buf.entrySet()) {
+                    series.add(e.getValue().fastBuild());
+                }
+
+                AddRequest r = new AddRequest();
+                r.series = series;
+
+                return r;
+            } finally {
+                clear();
+            }
+        }
+
+        public void clear() {
+            builders.clear();
+            size = 0;
         }
     }
 }

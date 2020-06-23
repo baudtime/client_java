@@ -19,18 +19,15 @@ import io.baudtime.client.ClientConfig;
 import io.baudtime.discovery.ServiceAddrObserver;
 import io.baudtime.discovery.ServiceAddrProvider;
 import io.baudtime.message.AddRequest;
-import io.baudtime.message.Hashed;
 import io.baudtime.message.Series;
 import io.baudtime.util.BaudtimeThreadFactory;
 import io.baudtime.util.Util;
 import io.netty.channel.Channel;
+import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -38,6 +35,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
     private final ThreadPoolExecutor workerThreads;
     private final List<Worker> workers = new ArrayList<Worker>();
+    private static final AttributeKey<String> addrKey = AttributeKey.valueOf("addr");
 
     public StickyClient(ClientConfig clientConfig, ServiceAddrProvider serviceAddrProvider, FutureListener writeHook) {
         super(clientConfig, serviceAddrProvider, writeHook);
@@ -57,31 +55,25 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
     @Override
     public void append(Collection<Series> series) {
-        Worker workerForBatch = null;
-        if (series instanceof Hashed) {
-            workerForBatch = getWorker((Hashed) series);
-        }
-
-        List<Series> tryAgain = new LinkedList<Series>();
-        Worker worker;
+        Map<Integer, AddRequest.Builder> builders = new HashMap<Integer, AddRequest.Builder>();
 
         for (Series s : series) {
-            worker = (workerForBatch != null ? workerForBatch : getWorker(s));
-            if (worker != null) {
-                try {
-                    worker.submit(s, false);
-                } catch (IllegalStateException e) {
-                    tryAgain.add(s);
-                }
+            int idx = workerIndex(s.hash());
+
+            AddRequest.Builder builder = builders.get(idx);
+            if (builder == null) {
+                builder = AddRequest.newBuilder();
+                builders.put(idx, builder);
             }
+
+            builder.addSeries(s);
         }
 
-        if (!tryAgain.isEmpty()) {
-            for (Series s : tryAgain) {
-                worker = (workerForBatch != null ? workerForBatch : getWorker(s));
-                if (worker != null) {
-                    worker.submit(s, true);
-                }
+        Worker worker;
+        for (Map.Entry<Integer, AddRequest.Builder> e : builders.entrySet()) {
+            worker = getWorker(e.getKey());
+            if (worker != null) {
+                worker.submit(e.getValue());
             }
         }
     }
@@ -95,39 +87,41 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         super.close();
     }
 
-    private Worker getWorker(Hashed hashed) {
-        int idx = (hashed.hash() & 0x0FFFF) % workers.size();
-        return workers.get(idx);
+    private int workerIndex(int hash) {
+        return (hash & 0x0FFFFF) % workers.size();
+    }
+
+    private Worker getWorker(int index) {
+        return workers.get(index);
     }
 
     private class Worker implements Runnable, ServiceAddrObserver {
         private final Logger log = LoggerFactory.getLogger(this.getClass());
         private long backOff = 1;
 
-        private final BlockingQueue<Series> queue;
+        private final BlockingQueue<AddRequest.Builder> queue;
         private final int batchSize;
 
         private Channel ch;
-        private String addr;
         private AtomicBoolean shouldUpdate = new AtomicBoolean(false);
 
         private volatile boolean running = true;
 
         private Worker(int batchSize, int queueCapacity) {
-            this.queue = new ArrayBlockingQueue<Series>(queueCapacity);
+            this.queue = new ArrayBlockingQueue<AddRequest.Builder>(queueCapacity);
             this.batchSize = batchSize;
         }
 
         @Override
         public void run() {
             while (running) {
-                AddRequest.Builder reqBuilder = AddRequest.newBuilder();
+                AddRequest.MergedBuilder merger = new AddRequest.MergedBuilder();
 
-                while (reqBuilder.size() < batchSize) {
+                while (merger.size() < batchSize) {
                     try {
-                        Series s = this.queue.poll(3, TimeUnit.MILLISECONDS);
-                        if (s != null) {
-                            reqBuilder.addSeries(s);
+                        AddRequest.Builder builder = this.queue.poll(200, TimeUnit.MILLISECONDS);
+                        if (builder != null) {
+                            merger.merge(builder);
                         } else {
                             break;
                         }
@@ -141,10 +135,10 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                         updateChannel();
                     }
 
-                    if (ch != null && ch.isActive() && reqBuilder.size() > 0) {
+                    if (ch != null && ch.isActive() && merger.size() > 0) {
                         ensureWritable(ch);
 
-                        Message tcpMsg = new Message(opaque.getAndIncrement(), reqBuilder.build());
+                        Message tcpMsg = new Message(opaque.getAndIncrement(), merger.build());
 
                         Future f = new Future(tcpMsg).addListener(writeResponseHook);
                         responseHandler.registerFuture(f);
@@ -167,19 +161,15 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             log.info("write worker exit");
         }
 
-        private void submit(Series series, boolean backPressure) {
+        private void submit(AddRequest.Builder addRequestBuilder) {
             if (!running) {
                 return;
             }
 
-            if (backPressure) {
-                try {
-                    this.queue.put(series);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            } else {
-                this.queue.add(series);
+            try {
+                this.queue.put(addRequestBuilder);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
 
@@ -190,14 +180,13 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         private void updateChannel() throws InterruptedException {
             Thread.sleep(backOff);
 
-            log.warn("switch channel...");
-
             Channel oldCh = this.ch;
-            String oldAddr = this.addr;
             this.ch = null;
-            this.addr = null;
 
             if (oldCh != null) {
+                String oldAddr = oldCh.attr(addrKey).get();
+                log.warn("switch channel from {} ...", oldAddr);
+
                 oldCh.close();
                 putChannel(oldAddr, oldCh);
             }
@@ -222,8 +211,8 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                 backOff = 1;
             }
 
+            ch.attr(addrKey).set(addr);
             this.ch = ch;
-            this.addr = addr;
 
             log.info("switched to {}", addr);
         }
