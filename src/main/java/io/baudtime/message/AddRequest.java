@@ -28,7 +28,8 @@ import java.util.*;
 public class AddRequest implements BaudMessage {
     private Collection<Series> series;
 
-    private AddRequest() {
+    private AddRequest(Collection<Series> series) {
+        this.series = series;
     }
 
     public byte[] marshal() {
@@ -57,7 +58,7 @@ public class AddRequest implements BaudMessage {
                 }
             }
         } catch (IOException e) {
-            throw new MessageCheck.MarshalException(e);
+            throw new Exceptions.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -104,7 +105,7 @@ public class AddRequest implements BaudMessage {
             }
 
         } catch (IOException e) {
-            throw new MessageCheck.UnmarshalException(e);
+            throw new Exceptions.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();
@@ -115,13 +116,14 @@ public class AddRequest implements BaudMessage {
     }
 
     public static Builder newBuilder() {
-        return new Builder();
+        return new Builder().withMerge();
     }
 
     public static class Builder {
 
         private List<Series> toBuild = new LinkedList<Series>();
         private int size;
+        private boolean withMerge;
 
         public Builder addSeries(Series series) {
             toBuild.add(series);
@@ -138,11 +140,20 @@ public class AddRequest implements BaudMessage {
             return this;
         }
 
+        public Builder withMerge() {
+            this.withMerge = true;
+            return this;
+        }
+
         public int size() {
             return size;
         }
 
         public AddRequest build() {
+            if (!withMerge) {
+                return new AddRequest(toBuild);
+            }
+
             Map<String, Series.Builder> buf = new HashMap<String, Series.Builder>();
             for (Series series : toBuild) {
                 List<Label> lbls = series.getLabels();
@@ -174,10 +185,7 @@ public class AddRequest implements BaudMessage {
                     series.add(e.getValue().fastBuild());
                 }
 
-                AddRequest r = new AddRequest();
-                r.series = series;
-
-                return r;
+                return new AddRequest(series);
             } finally {
                 clear();
             }
@@ -237,10 +245,7 @@ public class AddRequest implements BaudMessage {
                     series.add(e.getValue().fastBuild());
                 }
 
-                AddRequest r = new AddRequest();
-                r.series = series;
-
-                return r;
+                return new AddRequest(series);
             } finally {
                 clear();
             }

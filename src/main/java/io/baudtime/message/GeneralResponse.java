@@ -45,7 +45,7 @@ public class GeneralResponse implements BaudMessage {
             packer.packString("message");
             packer.packString(message);
         } catch (IOException e) {
-            throw new MessageCheck.MarshalException(e);
+            throw new Exceptions.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -68,11 +68,11 @@ public class GeneralResponse implements BaudMessage {
                 } else if (key.equals("message")) {
                     message = unPacker.unpackString();
                 } else {
-                    throw new MessageCheck.UnmarshalException("unexpect key");
+                    throw new Exceptions.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new MessageCheck.UnmarshalException(e);
+            throw new Exceptions.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();

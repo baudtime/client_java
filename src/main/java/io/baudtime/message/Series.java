@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static io.baudtime.message.MessageCheck.checkLabelName;
+import static io.baudtime.util.LabelChecker.checkLabelName;
 
 public class Series implements Hashed {
     private final List<Label> labels;

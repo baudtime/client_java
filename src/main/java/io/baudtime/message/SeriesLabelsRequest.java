@@ -56,7 +56,7 @@ public class SeriesLabelsRequest implements BaudMessage {
             packer.packString("timeout");
             packer.packString(timeout);
         } catch (IOException e) {
-            throw new MessageCheck.MarshalException(e);
+            throw new Exceptions.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -87,11 +87,11 @@ public class SeriesLabelsRequest implements BaudMessage {
                         matches.add(unPacker.unpackString());
                     }
                 } else {
-                    throw new MessageCheck.UnmarshalException("unexpect key");
+                    throw new Exceptions.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new MessageCheck.UnmarshalException(e);
+            throw new Exceptions.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();

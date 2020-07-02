@@ -56,7 +56,7 @@ public class RangeQueryRequest implements BaudMessage {
             packer.packString("query");
             packer.packString(query);
         } catch (IOException e) {
-            throw new MessageCheck.MarshalException(e);
+            throw new Exceptions.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -85,11 +85,11 @@ public class RangeQueryRequest implements BaudMessage {
                 } else if (key.equals("query")) {
                     query = unPacker.unpackString();
                 } else {
-                    throw new MessageCheck.UnmarshalException("unexpect key");
+                    throw new Exceptions.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new MessageCheck.UnmarshalException(e);
+            throw new Exceptions.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();

@@ -15,14 +15,7 @@
 
 package io.baudtime.message;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-public class MessageCheck {
-
-    private static final Pattern labelNameRE = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_]*$");
-    private static final ThreadLocal<Matcher> matchers = new ThreadLocal<Matcher>();
-
+public class Exceptions {
     public static class LabelPatternException extends RuntimeException {
         private static final String labelNameREMsg = "label name must match ^[a-zA-Z_][a-zA-Z0-9_]*$";
         private String wrongPatternString;
@@ -54,20 +47,6 @@ public class MessageCheck {
 
         public UnmarshalException(Throwable t) {
             super(t);
-        }
-    }
-
-    public static void checkLabelName(String name) {
-        Matcher m = matchers.get();
-        if (m == null) {
-            m = labelNameRE.matcher(name);
-            matchers.set(m);
-        } else {
-            m.reset(name);
-        }
-
-        if (!m.matches()) {
-            throw new LabelPatternException(name);
         }
     }
 }

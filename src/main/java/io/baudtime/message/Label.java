@@ -19,7 +19,7 @@ import io.baudtime.util.Assert;
 
 import java.util.Comparator;
 
-import static io.baudtime.message.MessageCheck.checkLabelName;
+import static io.baudtime.util.LabelChecker.checkLabelName;
 
 public class Label {
     private final String name;

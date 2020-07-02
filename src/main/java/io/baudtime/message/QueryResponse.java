@@ -53,7 +53,7 @@ public class QueryResponse implements BaudMessage {
             packer.packString("errorMsg");
             packer.packString(errorMsg);
         } catch (IOException e) {
-            throw new MessageCheck.MarshalException(e);
+            throw new Exceptions.MarshalException(e);
         } finally {
             try {
                 packer.close();
@@ -78,11 +78,11 @@ public class QueryResponse implements BaudMessage {
                 } else if (key.equals("errorMsg")) {
                     errorMsg = unPacker.unpackString();
                 } else {
-                    throw new MessageCheck.UnmarshalException("unexpect key");
+                    throw new Exceptions.UnmarshalException("unexpect key");
                 }
             }
         } catch (IOException e) {
-            throw new MessageCheck.UnmarshalException(e);
+            throw new Exceptions.UnmarshalException(e);
         } finally {
             try {
                 unPacker.close();
