@@ -172,14 +172,6 @@ public class ClientConfig {
             return this;
         }
 
-        public Builder stickyQueueCapacity(int queueCapacity) {
-            if (stickyConfigBuilder == null) {
-                stickyConfigBuilder = new StickyConfig.Builder();
-            }
-            this.stickyConfigBuilder.stickyQueueCapacity(queueCapacity);
-            return this;
-        }
-
         ClientConfig build() {
             ClientConfig config = new ClientConfig();
 
@@ -205,12 +197,10 @@ public class ClientConfig {
     public static class StickyConfig {
         private int workerNum;
         private int batchSize;
-        private int queueCapacity;
 
-        private StickyConfig(int workerNum, int batchSize, int queueCapacity) {
+        private StickyConfig(int workerNum, int batchSize) {
             this.workerNum = workerNum;
             this.batchSize = batchSize;
-            this.queueCapacity = queueCapacity;
         }
 
         public int getWorkerNum() {
@@ -221,14 +211,9 @@ public class ClientConfig {
             return batchSize;
         }
 
-        public int getQueueCapacity() {
-            return queueCapacity;
-        }
-
         private static class Builder {
             private int workerNum = Runtime.getRuntime().availableProcessors() / 2;
-            private int batchSize = 1024;
-            private int queueCapacity = 1024;
+            private int batchSize = 512;
 
             private Builder stickyWorkerNum(int workerNum) {
                 this.workerNum = workerNum;
@@ -240,20 +225,14 @@ public class ClientConfig {
                 return this;
             }
 
-            private Builder stickyQueueCapacity(int queueCapacity) {
-                this.queueCapacity = queueCapacity;
-                return this;
-            }
-
             private StickyConfig build() {
                 Assert.isPositive(workerNum);
                 Assert.isPositive(batchSize);
-                Assert.isPositive(queueCapacity);
-                Assert.notBiggerThan(batchSize, queueCapacity, "batchSize should be not bigger than queueCapacity");
+
                 if (workerNum > Runtime.getRuntime().availableProcessors()) {
                     workerNum = Runtime.getRuntime().availableProcessors();
                 }
-                return new StickyConfig(workerNum, batchSize, queueCapacity);
+                return new StickyConfig(workerNum, batchSize);
             }
         }
     }

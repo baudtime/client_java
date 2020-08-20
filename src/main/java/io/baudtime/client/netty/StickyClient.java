@@ -23,7 +23,6 @@ import io.baudtime.message.Series;
 import io.baudtime.util.BaudtimeThreadFactory;
 import io.baudtime.util.Util;
 import io.netty.channel.Channel;
-import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,11 +30,10 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class StickyClient extends RoundRobinClient implements TcpClient {
+public class StickyClient extends AbstractClient {
 
     private final ThreadPoolExecutor workerThreads;
     private final List<Worker> workers = new ArrayList<Worker>();
-    private static final AttributeKey<String> addrKey = AttributeKey.valueOf("addr");
 
     public StickyClient(ClientConfig clientConfig, ServiceAddrProvider serviceAddrProvider, FutureListener writeHook) {
         super(clientConfig, serviceAddrProvider, writeHook);
@@ -46,7 +44,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
         workerThreads = new ThreadPoolExecutor(workNum, workNum, 0L, TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<Runnable>(), new BaudtimeThreadFactory("nettyWorker"));
         for (int i = 0; i < workNum; i++) {
-            Worker worker = new Worker(stickyConfig.getBatchSize(), stickyConfig.getQueueCapacity());
+            Worker worker = new Worker(stickyConfig.getBatchSize());
             workers.add(worker);
             workerThreads.submit(worker);
             serviceAddrProvider.addObserver(worker);
@@ -107,8 +105,8 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
 
         private volatile boolean running = true;
 
-        private Worker(int batchSize, int queueCapacity) {
-            this.queue = new ArrayBlockingQueue<AddRequest.Builder>(queueCapacity);
+        private Worker(int batchSize) {
+            this.queue = new ArrayBlockingQueue<AddRequest.Builder>(batchSize / 4 + batchSize);
             this.batchSize = batchSize;
         }
 
@@ -136,22 +134,7 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                     }
 
                     if (ch != null && ch.isActive() && merger.size() > 0) {
-                        ensureWritable(ch);
-
-                        Message tcpMsg = new Message(opaque.getAndIncrement(), merger.build());
-
-                        Future f = new Future(tcpMsg).addListener(writeResponseHook);
-                        responseHandler.registerFuture(f);
-
-                        if (clientConfig.isFlushChannelOnEachWrite()) {
-                            ch.writeAndFlush(tcpMsg).addListener(f);
-                        } else {
-                            ch.write(tcpMsg);
-
-                            if (!ch.isWritable() && ch.isOpen()) {
-                                ch.flush();
-                            }
-                        }
+                        asyncRequest(ch, merger.build());
                     }
                 } catch (Exception e) {
                     log.error(e.getMessage());
@@ -184,24 +167,17 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
             this.ch = null;
 
             if (oldCh != null) {
-                String oldAddr = oldCh.attr(addrKey).get();
-                log.warn("switch channel from {} ...", oldAddr);
+                log.warn("switch channel from {} ...", oldCh.remoteAddress());
 
                 oldCh.close();
-                putChannel(oldAddr, oldCh);
-            }
-
-            String addr = serviceAddrProvider.getServiceAddr();
-            if (addr == null) {
-                throw new RuntimeException("no server was found");
+                putChannel(oldCh);
             }
 
             Channel ch = null;
             try {
-                ch = getChannel(addr);
+                ch = getChannel();
             } catch (Exception e) {
-                serviceAddrProvider.serviceDown(addr);
-                log.error("failed to switch to " + addr, e);
+                log.error("failed to switch", e);
             }
 
             if (ch == null) {
@@ -211,10 +187,9 @@ public class StickyClient extends RoundRobinClient implements TcpClient {
                 backOff = 1;
             }
 
-            ch.attr(addrKey).set(addr);
             this.ch = ch;
 
-            log.info("switched to {}", addr);
+            log.info("switched to {}", ch.remoteAddress());
         }
 
         @Override

@@ -26,10 +26,16 @@ import java.util.Map;
 public abstract class ClientBuilder<B, C extends Client> {
 
     protected FutureListener futureListener;
+    protected KeyBoundClient.KeyMapping keyMapping;
     protected ClientConfig.Builder configBuilder = new ClientConfig.Builder();
 
     public B writeResponseHook(FutureListener futureListener) {
         this.futureListener = futureListener;
+        return thisBuilder();
+    }
+
+    public B keyMapping(KeyBoundClient.KeyMapping<? extends Comparable> keyMapping) {
+        this.keyMapping = keyMapping;
         return thisBuilder();
     }
 
@@ -117,8 +123,8 @@ public abstract class ClientBuilder<B, C extends Client> {
         return thisBuilder();
     }
 
+    @Deprecated
     public B stickyQueueCapacity(int queueCapacity) {
-        this.configBuilder.stickyQueueCapacity(queueCapacity);
         return thisBuilder();
     }
 
@@ -145,8 +151,24 @@ public abstract class ClientBuilder<B, C extends Client> {
             }
             ClientConfig clientConfig = configBuilder.build();
 
-            TcpClient tcpClient = clientConfig.getStickyConfig() == null ? new RoundRobinClient(clientConfig, serviceAddrProvider, futureListener) :
-                    new StickyClient(clientConfig, serviceAddrProvider, futureListener);
+            TcpClient tcpClient = null;
+
+            if (keyMapping != null && clientConfig.getStickyConfig() != null) {
+                throw new RuntimeException("must not set key mapping and sticky config at the same time");
+            }
+
+            if (keyMapping == null && clientConfig.getStickyConfig() == null) {
+                tcpClient = new RoundRobinClient(clientConfig, serviceAddrProvider, futureListener);
+            }
+
+            if (keyMapping == null && clientConfig.getStickyConfig() != null) {
+                tcpClient = new StickyClient(clientConfig, serviceAddrProvider, futureListener);
+            }
+
+            if (keyMapping != null && clientConfig.getStickyConfig() == null) {
+                tcpClient = new KeyBoundClient(keyMapping, clientConfig, serviceAddrProvider, futureListener);
+            }
+
             return new BaudClient(tcpClient);
         }
 
@@ -171,13 +193,28 @@ public abstract class ClientBuilder<B, C extends Client> {
 
             ClientConfig clientConfig = configBuilder.build();
 
+            if (keyMapping != null && clientConfig.getStickyConfig() != null) {
+                throw new RuntimeException("must not set key mapping and sticky config at the same time");
+            }
+
             MultiEndpointClient multiEndpointClient = new MultiEndpointClient();
             for (Map.Entry<String, ServiceAddrProvider> e : multiEndpointAddrProviders.entrySet()) {
                 String endPoint = e.getKey();
-                ServiceAddrProvider addrProvider = e.getValue();
+                ServiceAddrProvider serviceAddrProvider = e.getValue();
 
-                TcpClient tcpClient = clientConfig.getStickyConfig() == null ? new RoundRobinClient(clientConfig, addrProvider, futureListener) :
-                        new StickyClient(clientConfig, addrProvider, futureListener);
+                TcpClient tcpClient = null;
+
+                if (keyMapping == null && clientConfig.getStickyConfig() == null) {
+                    tcpClient = new RoundRobinClient(clientConfig, serviceAddrProvider, futureListener);
+                }
+
+                if (keyMapping == null && clientConfig.getStickyConfig() != null) {
+                    tcpClient = new StickyClient(clientConfig, serviceAddrProvider, futureListener);
+                }
+
+                if (keyMapping != null && clientConfig.getStickyConfig() == null) {
+                    tcpClient = new KeyBoundClient(keyMapping, clientConfig, serviceAddrProvider, futureListener);
+                }
 
                 multiEndpointClient.addEndpoint(endPoint, new BaudClient(tcpClient));
             }

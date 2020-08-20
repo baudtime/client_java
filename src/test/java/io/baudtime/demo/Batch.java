@@ -28,7 +28,7 @@ public class Batch {
                     public void onFinished(Future future) {
                         logger.info("{}", future.getOpaque());
                     }
-                }).stickyWorkerNum(2).stickyBatchSize(512).stickyQueueCapacity(1024).build();
+                }).stickyWorkerNum(2).stickyBatchSize(512).build();
 
         RecordsAdaptor<MultiEndpointClient, HashMap<Integer, Series>> wrapped = RecordsAdaptor.wrap(cli, new RecordsAdaptor.RecordsConverter<HashMap<Integer, Series>>() {
             @Override
