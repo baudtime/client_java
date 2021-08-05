@@ -72,11 +72,8 @@ public class KeyBoundClient<K> extends AbstractClient implements ServiceAddrObse
             Channel newc = getChannel();
             Channel oldc = this.channels.put(key, newc);
             if (oldc != null) {
-                if (!oldc.isActive()) {
-                    oldc.close();
-                } else {
-                    putChannel(oldc);
-                }
+                oldc.close();
+                putChannel(oldc);
             }
             return newc;
         }
@@ -114,6 +111,7 @@ public class KeyBoundClient<K> extends AbstractClient implements ServiceAddrObse
                             putChannel(ch);
                         }
                     }
+                    channels.clear();
                 }
             }
         });

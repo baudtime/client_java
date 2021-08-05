@@ -44,7 +44,7 @@ public abstract class AbstractClient implements TcpClient {
 
     private final AtomicLong opaque = new AtomicLong(0);
 
-    private final ServiceAddrProvider serviceAddrProvider;
+    protected final ServiceAddrProvider serviceAddrProvider;
     private final ResponseHandler responseHandler;
     private final FutureListener writeResponseHook;
 
@@ -176,7 +176,7 @@ public abstract class AbstractClient implements TcpClient {
         this.eventLoopGroup.shutdownGracefully();
     }
 
-    BaudMessage syncRequest(Channel ch, BaudMessage request, long timeout, TimeUnit unit) {
+    protected BaudMessage syncRequest(Channel ch, BaudMessage request, long timeout, TimeUnit unit) {
         ensureWritable(ch);
 
         Message tcpMsg = new Message(opaque.getAndIncrement(), request);
@@ -194,7 +194,7 @@ public abstract class AbstractClient implements TcpClient {
         }
     }
 
-    void asyncRequest(Channel ch, BaudMessage request) {
+    protected void asyncRequest(Channel ch, BaudMessage request) {
         ensureWritable(ch);
 
         Message tcpMsg = new Message(opaque.getAndIncrement(), request);
@@ -213,12 +213,15 @@ public abstract class AbstractClient implements TcpClient {
         }
     }
 
-    Channel getChannel() {
+    protected Channel getChannel() {
         String addr = serviceAddrProvider.getServiceAddr();
         if (addr == null) {
             throw new RuntimeException("no server was found");
         }
+        return getChannel(addr);
+    }
 
+    protected Channel getChannel(String addr) {
         FixedChannelPool pool = poolMap.get(addr);
         if (pool != null) {
             try {
@@ -237,7 +240,7 @@ public abstract class AbstractClient implements TcpClient {
         throw new RuntimeException("can't build conn pool for " + addr);
     }
 
-    void putChannel(Channel channel) {
+    protected void putChannel(Channel channel) {
         if (channel == null) {
             return;
         }
@@ -261,8 +264,6 @@ public abstract class AbstractClient implements TcpClient {
                 try {
                     if (barrier.await(5, TimeUnit.SECONDS)) {
                         return;
-                    } else {
-                        continue;
                     }
                 } catch (InterruptedException e) {
                     throw new RuntimeException("flow control barrier is interrupted", e);

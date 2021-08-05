@@ -95,7 +95,7 @@ public class ClientConfig {
         private int maxResponseFrameLength = 150 * 1024 * 1024;
 
         private int maxConnectionsOnEachServer = 6;
-        private boolean flushChannelOnEachWrite = false;
+        private boolean flushChannelOnEachWrite = true;
 
         private int channelMaxIdleTimeSeconds = 600;
 
@@ -172,7 +172,7 @@ public class ClientConfig {
             return this;
         }
 
-        ClientConfig build() {
+        public ClientConfig build() {
             ClientConfig config = new ClientConfig();
 
             config.connectTimeoutMillis = this.connectTimeoutMillis;

@@ -98,6 +98,11 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
     }
 
     @Override
+    public Collection<String> healthyAddress() {
+        return healthyAddrs == null ? Collections.<String>emptyList() : Collections.unmodifiableList(healthyAddrs);
+    }
+
+    @Override
     public void serviceDown(String addr) {
         if (ping(addr)) {
             return;
@@ -144,7 +149,12 @@ public class StaticServiceAddrProvider implements ServiceAddrProvider {
         watcher.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                StaticServiceAddrProvider.this.checkUnhealthyAddrs();
+                try {
+                    StaticServiceAddrProvider.this.checkUnhealthyAddrs();
+                } catch (Exception e) {
+                    log.error("check unhealthy error", e);
+                }
+
             }
         }, 0, checkInterval, checkTimeUnit);
     }

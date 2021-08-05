@@ -15,8 +15,12 @@
 
 package io.baudtime.discovery;
 
+import java.util.Collection;
+
 public interface ServiceAddrProvider {
     String getServiceAddr();
+
+    Collection<String> healthyAddress();
 
     void serviceDown(String addr);
 

@@ -40,7 +40,7 @@ public class LabelValuesRequest implements BaudMessage {
     public byte[] marshal() {
         MessageBufferPacker packer = MessagePack.newDefaultBufferPacker();
         try {
-            packer.packMapHeader(4);
+            packer.packMapHeader(5);
 
             packer.packString("name");
             packer.packString(name);

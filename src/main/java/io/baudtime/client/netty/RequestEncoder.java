@@ -48,6 +48,8 @@ class RequestEncoder extends MessageToByteEncoder<Message> {
                 out.writeByte(4);
             } else if (raw instanceof LabelValuesRequest) {
                 out.writeByte(6);
+            } else if (raw instanceof CustomTypeMessage) {
+                out.writeByte(((CustomTypeMessage) raw).type());
             } else {
                 throw new RuntimeException("bad request format");
             }

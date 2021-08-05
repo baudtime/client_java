@@ -16,6 +16,7 @@
 package io.baudtime.client.netty;
 
 import io.baudtime.message.BaudMessage;
+import io.baudtime.message.Recyclable;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 public class Future implements ChannelFutureListener {
     private final Long opaque;
+    private volatile BaudMessage request;
     private volatile BaudMessage response;
 
     private volatile boolean sendRequestOK = true;
@@ -41,6 +43,7 @@ public class Future implements ChannelFutureListener {
 
     public Future(Message msg) {
         this.opaque = msg.getOpaque();
+        this.request = msg.getRaw();
     }
 
     public Future addListener(FutureListener listener) {
@@ -101,11 +104,20 @@ public class Future implements ChannelFutureListener {
 
     @Override
     public void operationComplete(ChannelFuture future) {
-        future.removeListener(this);
-        if (future.isSuccess()) {
-            this.setSendRequestOK(true);
-        } else {
-            this.setSendRequestOK(false).setCause(future.cause()).finish();
+        try {
+            future.removeListener(this);
+            if (future.isSuccess()) {
+                this.setSendRequestOK(true);
+            } else {
+                this.setSendRequestOK(false).setCause(future.cause()).finish();
+            }
+        } finally {
+            if (this.request != null) {
+                if (request instanceof Recyclable) {
+                    ((Recyclable) request).recycle();
+                }
+                this.request = null;
+            }
         }
     }
 }
