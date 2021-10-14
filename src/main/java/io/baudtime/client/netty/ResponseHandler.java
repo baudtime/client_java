@@ -15,23 +15,31 @@
 
 package io.baudtime.client.netty;
 
+import io.baudtime.message.BaudMessage;
+import io.baudtime.message.GeneralResponse;
+import io.baudtime.message.StatusCode;
 import io.baudtime.util.ConcurrentReferenceHashMap;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 
+import static io.baudtime.util.ConcurrentReferenceHashMap.ReferenceType;
 
 @Sharable
 class ResponseHandler extends SimpleChannelInboundHandler<Message> {
 
-    private final ConcurrentReferenceHashMap<Long, Future> futures = new ConcurrentReferenceHashMap<Long, Future>();
+    private final ConcurrentReferenceHashMap<Long, Future> futures = new ConcurrentReferenceHashMap<Long, Future>(16, ReferenceType.STRONG, ReferenceType.SOFT);
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) {
         Future future = futures.get(msg.getOpaque());
         if (future != null) {
             try {
-                future.setResponse(msg.getRaw()).finish();
+                BaudMessage response = msg.getRaw();
+                if (response instanceof GeneralResponse && StatusCode.Failed == ((GeneralResponse) response).getStatus()) {
+                    future.setCause(new Exception(((GeneralResponse) response).getMessage()));
+                }
+                future.setResponse(response).finish();
             } finally {
                 futures.remove(future.getOpaque());
             }
