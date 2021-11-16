@@ -1,8 +1,7 @@
 package io.baudtime.demo;
 
+import io.baudtime.client.Client;
 import io.baudtime.client.ClientBuilder;
-import io.baudtime.client.MultiEndpointClient;
-import io.baudtime.client.RecordsAdaptor;
 import io.baudtime.client.netty.Future;
 import io.baudtime.client.netty.FutureListener;
 import io.baudtime.discovery.StaticServiceAddrProvider;
@@ -12,36 +11,25 @@ import io.baudtime.message.Series;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class Batch {
     private static final Logger logger = LoggerFactory.getLogger(Demo.class);
-    private static String[] addrs = {"127.0.0.1:8088"};
+    private static String[] addrs = {"127.0.0.1:7630"};
 
     public static void main(String[] args) {
-        MultiEndpointClient cli = ClientBuilder.newMultiEndpointClientBuilder().flushChannelOnEachWrite(true)
-                .serviceAddrProvider("default", new StaticServiceAddrProvider(2, TimeUnit.SECONDS, addrs))
+        Client cli = ClientBuilder.newClientBuilder().flushChannelOnEachWrite(true)
+                .serviceAddrProvider(new StaticServiceAddrProvider(2, TimeUnit.SECONDS, addrs))
                 .writeResponseHook(new FutureListener() {
                     @Override
                     public void onFinished(Future future) {
-                        logger.info("{}", future.getOpaque());
+                        logger.info("{} {}", future.getOpaque(), future.getCause());
                     }
-                }).stickyWorkerNum(2).stickyBatchSize(512).build();
-
-        RecordsAdaptor<MultiEndpointClient, HashMap<Integer, Series>> wrapped = RecordsAdaptor.wrap(cli, new RecordsAdaptor.RecordsConverter<HashMap<Integer, Series>>() {
-            @Override
-            public Collection<Series> convert(HashMap<Integer, Series> series) {
-                return series.values();
-            }
-        });
-
-        wrapped.raw().use("default");
+                }).build();
 
         try {
-            long lastT = 0;
-
             Series.Builder sb1 = Series.newBuilder();
 
             sb1.setMetricName("cnt");
@@ -51,24 +39,22 @@ public class Batch {
             Label.Builder lb = sb1.addLabelBuilder();
             Point.Builder pb = sb1.addPointBuilder();
 
-            while (true) {
-                HashMap<Integer, Series> m = new HashMap<Integer, Series>();
+            long t = System.currentTimeMillis();
 
-                long t = System.currentTimeMillis();
-                while (t <= lastT) {
-                    t = System.currentTimeMillis();
-                }
-                lastT = t;
+            while (true) {
+                List<Series> m = new ArrayList<Series>();
+                t += 1000;
 
                 for (int i = 0; i < 10; i++) {
                     lb.setName("state").setValue(String.valueOf(i));
-                    pb.setT(t - i).setV(i);
+                    pb.setT(t).setV(t);
 
-                    m.put(i, sb1.build());
+                    m.add(sb1.build());
                 }
 
                 try {
-                    wrapped.write(m);
+                    cli.write(m);
+                    Thread.sleep(1000);
                 } catch (Exception e) {
                     logger.error("Exception", e);
                 }
