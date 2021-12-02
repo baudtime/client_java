@@ -30,7 +30,7 @@ public class Series {
 
     private final int hashcode;
 
-    public Series(List<Label> labels, List<Point> points) {
+    Series(List<Label> labels, List<Point> points) {
         Collections.sort(labels, Label.comparator);
         Collections.sort(points, Point.comparator);
 
@@ -85,30 +85,45 @@ public class Series {
         private final List<Label.Builder> labelBuilders = new ArrayList<Label.Builder>();
         private final List<Point.Builder> pointBuilders = new ArrayList<Point.Builder>();
 
+        private boolean noLabelNameCheck = false;
+
+        public Builder noLabelNameCheck() {
+            this.noLabelNameCheck = true;
+            return this;
+        }
+
         public Builder setMetricName(String name) {
             if (metricNameBuilder == null) {
                 metricNameBuilder = Label.newBuilder();
             }
-            checkLabelName(name);
+            if (!noLabelNameCheck) {
+                checkLabelName(name);
+            }
             metricNameBuilder.setName(__metricName__).setValue(name);
             return this;
         }
 
         @Deprecated
         public Builder setName(String name) {
-            checkLabelName(name);
+            if (!noLabelNameCheck) {
+                checkLabelName(name);
+            }
             return setMetricName(name);
         }
 
         public Builder addLabel(String name, String value) {
-            checkLabelName(name);
+            if (!noLabelNameCheck) {
+                checkLabelName(name);
+            }
             labels.add(new Label(name, value));
             return this;
         }
 
         public Builder addLabels(List<Label> labels) {
-            for (Label lb : labels) {
-                checkLabelName(lb.getName());
+            if (!noLabelNameCheck) {
+                for (Label lb : labels) {
+                    checkLabelName(lb.getName());
+                }
             }
             this.labels.addAll(labels);
             return this;

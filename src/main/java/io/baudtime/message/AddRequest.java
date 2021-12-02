@@ -171,7 +171,7 @@ public class AddRequest implements BaudMessage {
 
                 Series.Builder seriesBuilder = buf.get(k);
                 if (seriesBuilder == null) {
-                    seriesBuilder = Series.newBuilder();
+                    seriesBuilder = Series.newBuilder().noLabelNameCheck();
                     seriesBuilder.addLabels(lbls);
                     buf.put(k, seriesBuilder);
                 }

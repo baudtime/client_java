@@ -46,8 +46,17 @@ public class Label {
         private String name;
         private String value;
 
+        private boolean noLabelNameCheck = false;
+
+        public Builder noLabelNameCheck() {
+            this.noLabelNameCheck = true;
+            return this;
+        }
+
         public Builder setName(String name) {
-            checkLabelName(name);
+            if (!noLabelNameCheck) {
+                checkLabelName(name);
+            }
             this.name = name;
             return this;
         }
